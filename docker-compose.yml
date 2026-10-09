@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: docusync-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: docusync
+      POSTGRES_PASSWORD: change-me-local-only
+      POSTGRES_DB: docusync
+    ports:
+      - "5432:5432"
+    volumes:
+      - docusync_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docusync -d docusync"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  docusync_pgdata:

@@ -1,0 +1,1 @@
+Record a material architecture or product decision in `progress/DECISIONS.md`. Include ID, date, status, context, decision, alternatives considered and consequences. Inspect existing decisions to avoid duplicate IDs. Do not record assumptions as accepted decisions; mark them proposed until the user agrees when approval is needed.

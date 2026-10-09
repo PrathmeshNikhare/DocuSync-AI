@@ -1,0 +1,1 @@
+Review the current implementation against `docs/11-demo-script.md`. Verify each step from the actual code and tests. Identify fake states, mocked integrations, missing credentials, broken paths and any step that has not been run. Do not claim a live end-to-end demo unless it was observed. Return a reproducible checklist and blockers.
