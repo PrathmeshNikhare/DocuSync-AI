@@ -39,7 +39,8 @@ Never include stack traces, secrets, raw authorization headers or private model 
 - Do not return secrets or unnecessary repository content.
 
 ### `PATCH /api/reviews/:id`
-- Accept one decision: `accept`, `edit`, or `reject`.
+- Accept one decision: `accepted`, `edited` (with `editedPatch`), or `rejected` (`reviewDecisionInputSchema`).
+- The body must not carry `reviewerId` or `proposalId`. The reviewer comes from the authenticated session, and the proposal comes from the URL.
 - Require authentication and authorization.
 - Validate edited patch; record reviewer and decision.
 - Acceptance is not itself a GitHub write unless the explicit approval workflow is implemented and invoked.

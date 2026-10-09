@@ -12,16 +12,38 @@ Build a GitHub-integrated documentation maintenance assistant that:
 5. Supports human accept/edit/reject review.
 6. Creates a separate documentation PR only after explicit human approval.
 
-## Start here
+## Local setup
 
-1. Extract this harness into the root of a **new, empty** `docusync-ai` repository.
-2. Open Claude Code from that repository root.
-3. Read `CLAUDE.md`, `AGENTS.md`, and `docs/INDEX.md`.
-4. Run `/status`.
-5. Start with `/start-phase 00-foundation`.
-6. Review the plan before allowing implementation.
-7. At phase completion, run `/test`, `/verify-phase`, `/review`, `/security-check`, then `/handoff`.
-8. Do not begin the next phase until the current phase has a verified handoff.
+Requires Node.js 24 (see `.nvmrc`) and, from Phase 01 onward, Docker for PostgreSQL.
+
+```bash
+npm ci
+cp .env.example .env.local      # placeholders only; never commit real values
+npm run format:check
+npm run lint
+npm run typecheck
+npm test                        # unit tests; no database or model required
+npm run build                   # no .env needed at build time
+npm run dev                     # http://localhost:3000, health: /api/health
+```
+
+PostgreSQL (not used by any code path yet; no migrations exist in Phase 00):
+
+```bash
+docker compose up -d --wait postgres
+docker compose stop
+```
+
+The container binds `127.0.0.1:5432` only. If another PostgreSQL already listens on port 5432, `docker compose up` fails with "ports are not available". Either stop the other server, or change the host port in `docker-compose.yml` and `DATABASE_URL` together (for example `127.0.0.1:55432:5432` with `localhost:55432`).
+
+## Harness workflow
+
+1. Open Claude Code from the repository root.
+2. Read `CLAUDE.md`, `AGENTS.md`, and `docs/INDEX.md`.
+3. Run `/status`, then `/start-phase <phase>`.
+4. Review the plan before allowing implementation.
+5. At phase completion, run `/test`, `/verify-phase`, `/review`, `/security-check`, then `/handoff`.
+6. Do not begin the next phase until the current phase has a verified handoff.
 
 The harness is the project's operating system. Phase specifications and project docs are the source of truth; prompts should orchestrate them rather than duplicate them.
 

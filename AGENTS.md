@@ -12,6 +12,8 @@ Priority order:
 
 If sources conflict, stop and explain the conflict; do not silently choose a risky interpretation.
 
+Next.js 16 has breaking changes from older versions. Before using an unfamiliar Next.js API, read the matching guide in `node_modules/next/dist/docs/`. (`agentRules: false` in `next.config.ts` stops `next dev` from injecting this advice into this file.)
+
 ## Ownership boundaries
 
 - Main Claude Code session: phase scope, integration, shared contracts, status and final report.

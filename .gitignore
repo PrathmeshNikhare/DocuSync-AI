@@ -10,3 +10,11 @@ build/
 *.log
 .DS_Store
 .vercel/
+*.tsbuildinfo
+next-env.d.ts
+*.pem
+*.key
+*.p12
+*.pfx
+.envrc
+.npmrc

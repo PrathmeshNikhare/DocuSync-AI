@@ -43,3 +43,12 @@ Keep these concepts independently testable:
 - Do not let UI components call GitHub or Ollama directly.
 - Do not couple the impact engine to Next.js request/response types.
 - Avoid adding infrastructure without a measured requirement.
+
+## Implemented so far (Phase 00)
+
+- Next.js 16.4 App Router under `src/app/`. `cacheComponents` is enabled, so `GET` handlers that read no request or runtime data are prerendered at build time.
+- `src/app/api/health/route.ts`: static liveness endpoint. It does not check the database or the model.
+- `src/lib/schemas.ts`: framework-independent Zod contracts for evidence references, impact candidates, analysis state and its transitions, patch proposals, review decisions (a client input schema and a separate server-built record schema) and the API error envelope.
+- `src/lib/env.ts`: lazy, server-only environment validation. Only `DATABASE_URL` is validated so far.
+- `src/lib/db/pool.ts`: lazy, server-only `pg` pool. No queries, tables or migrations exist yet.
+- None of the module folders listed above (`github/`, `diff-analyzer/`, and so on) exist yet. Each one is created in the phase that first needs it.

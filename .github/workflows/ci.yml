@@ -11,16 +11,22 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Don't leave the token in .git/config while PR code (npm ci, build) runs.
+          persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - name: Install
         run: npm ci
+      - name: Format check
+        run: npm run format:check
       - name: Lint
         run: npm run lint
       - name: Type check
