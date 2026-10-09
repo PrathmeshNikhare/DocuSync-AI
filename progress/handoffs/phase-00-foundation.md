@@ -1,11 +1,11 @@
 # Handoff — Phase 00: Foundation
 
 - Date: 2026-10-10
-- Status: IN PROGRESS. All local checks PASS. `/review` done, and findings M1, M2, L1, L3, L4 and the Nits are fixed. `/security-check` done, with security M1, L5, L8 and the docs/07 claim corrections fixed. Committed locally; not pushed.
+- Status: PASS (user-confirmed 2026-10-10). All local checks PASS. `/review` done, and findings M1, M2, L1, L3, L4 and the Nits are fixed. `/security-check` done, with security M1, L5, L8 and the docs/07 claim corrections fixed. Committed locally; not pushed.
 - Branch: `main` (no remote)
-- HEAD commit: Phase 00 checkpoint commit (the commit containing this handoff; see `git log`), on top of harness baseline `7045a66`
+- HEAD commit: `8762d4f` (Phase 00 checkpoint) on top of harness baseline `7045a66`, plus a follow-up commit marking the phase PASS
 - Working tree: clean after the Phase 00 checkpoint commit (local only, not pushed)
-- Active phase after handoff: 00 (do not start 01 until the gate is closed)
+- Active phase after handoff: 00 is complete; Phase 01 is NOT STARTED and waits for user direction
 
 ## Outcome
 
@@ -84,7 +84,7 @@ D-006 (Node 24 LTS and toolchain baseline) and D-007 (SQL migration convention, 
 
 ## Recovery / rollback
 
-The harness baseline is commit `7045a66`, and Phase 00 is one commit on top of it. To undo Phase 00 without rewriting history, run `git revert <phase-00-commit>`. Don't use `git reset --hard` without explicit approval.
+The harness baseline is commit `7045a66`, and Phase 00 is commit `8762d4f` plus a status-only commit on top of it. To undo Phase 00 without rewriting history, run `git revert 8762d4f` (and the PASS status commit after it). Don't use `git reset --hard` without explicit approval.
 
 ## Next session must verify
 
