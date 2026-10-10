@@ -55,3 +55,44 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
 - Decisions: none new.
 - Git state: `main`; Phase 00 checkpoint `8762d4f` on top of `7045a66`; this status update is committed separately. Not pushed.
 - Handoff path: `progress/handoffs/phase-00-foundation.md`
+
+### 2026-10-10 — Phase 01 — IN PROGRESS (local checks PASS)
+- Scope: read-only GitHub diff ingestion. Plan approved by the user, including dependencies, D-009 enqueue-only dispatch, a configurable Postgres host port, and recreating the empty volume.
+- Changes: signed webhook receiver with idempotent enqueue; read-only Octokit App reader and fixture reader; diff normalizer and `PullRequestSnapshot`; first migration and runner; `docusync_app` least-privilege database user; structured logging; ingest and migrate CLIs; CI Postgres service with database tests. Docs 02, 03, 04, 07 and 10, README, D-008 and D-009 updated.
+- Commands run (all exit 0): `npm ci` (lockfile unchanged), `npm run format:check`, `lint`, `typecheck`, `test` (190 passed), `build`, `test:db` (17 passed), `db:migrate` (twice), `ingest -- --fixture unsafe-paths`. Also an end-to-end webhook run against `next dev`, and a CI database-init simulation on a fresh container.
+- Test results: 190 unit and 17 database tests passed. Two bugs found by tests and fixed (Octokit timeout hook; timeout error mapping).
+- Acceptance criteria: all met locally (see handoff). Live GitHub NOT RUN (no App); GitHub CI NOT RUN (no remote); review and security-check NOT RUN.
+- Blockers/limitations: queued analyses are not processed (D-009); no auth; see the handoff for the full list.
+- Decisions: D-008, D-009.
+- Git state: `main`, HEAD `2f60dcc`, Phase 01 uncommitted.
+- Handoff path: `progress/handoffs/phase-01-github-diff-ingestion.md`
+
+### 2026-10-10 — Phase 01 — IN PROGRESS (review fixes applied)
+- Scope: the user-selected `/review` fixes: M1, L1, L4, L5, L6, T1–T4 and the nits.
+- Changes: `ingestPullRequest` re-reads PR metadata after listing files and takes `expectedHeadSha`, failing with `GITHUB_STALE_HEAD`. The normalizer marks unstorable or overflowing patches `malformed` and keeps the file. New codes `GITHUB_NETWORK_ERROR`, `GITHUB_STALE_HEAD` and `INVALID_PULL_REQUEST_REF`; secondary rate limits map to `GITHUB_RATE_LIMITED`. The migrate CLI prints only safe messages or codes, and `MigrationError` was added. Nits: PR number capped at `PG_INT_MAX`, `idle_in_transaction_session_timeout`, `server-only` on the Octokit reader, shared types moved to `src/lib/analysis-work.ts`, and a failed ROLLBACK keeps the original error. New tests: chunked body, pagination edges, route wiring, stale head, network error. docs/02 and docs/07 corrected. L2, L3 and the `reopened` retry are documented in the handoff, not fixed.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (213 passed), `build`, `test:db` (17 passed). Also three mutation checks (each caught), `db:migrate` with bad credentials and host (redacted output), and fixture `ingest`.
+- Test results: 213 unit and 17 database tests passed.
+- Blockers/limitations: the end-to-end webhook run against `next dev` was not repeated after these fixes; route wiring is now covered by `route.test.ts`.
+- Decisions: none new.
+- Git state: `main`, HEAD `2f60dcc`, Phase 01 uncommitted.
+- Handoff path: `progress/handoffs/phase-01-github-diff-ingestion.md` (updated)
+
+### 2026-10-10 — Phase 01 — IN PROGRESS (security-check fixes applied)
+- Scope: the user-selected `/security-check` fixes: M1, M2, L1, L2, L4, L6 and the doc corrections.
+- Changes: `GITHUB_ALLOWED_INSTALLATION_IDS` installation allowlist (fails closed, 503); other installations get 202 `ignored` with no DB write. Migration `0002_restrict_app_role.sql` (no `schema_migrations` access or TEMP for the app role; explicit REVOKE CREATE on `public`). Init script revokes PUBLIC CONNECT. Silent Octokit and auth-app loggers. The repository upsert skips no-op updates and the PR upsert never rewrites. `toTerminalSafeJson` for ingest CLI output. `logEvent` copies allowed fields at runtime. docs 02, 03, 04, 07 and 10, README and `.env.example` corrected (GitHub doesn't redeliver failed deliveries; precise privileges; stale-head limits; owner credentials kept out of the web process; private App).
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (227 passed), `build`, `test:db` (18 passed), `db:migrate` (applied 0002), CI-style fresh-container DB init plus `test:db` (18 passed), `npm audit --omit=dev` (0). Also an end-to-end webhook run with the allowlist, four mutation checks (each caught), and live privilege queries.
+- Test results: 227 unit and 18 database tests passed.
+- Blockers/limitations: the session was interrupted once; Docker Desktop had stopped and was restarted with `docker desktop start`. The deferred security items are listed in the handoff.
+- Decisions: none new.
+- Git state: `main`, HEAD `2f60dcc`, Phase 01 uncommitted.
+- Handoff path: `progress/handoffs/phase-01-github-diff-ingestion.md` (updated)
+
+### 2026-10-10 — Phase 01 — PASS
+- Scope: gate closure, confirmed by the user, plus the local checkpoint commit.
+- Changes: `STATUS.md` and the handoff mark Phase 01 as PASS. No code changes since the security-check fixes.
+- Commands run: none new. This relies on the checks recorded above (227 unit and 18 database tests, build, lint, typecheck, format, end-to-end webhook run).
+- Acceptance criteria: all Phase 01 exit criteria met locally. Live GitHub App NOT RUN (no App); GitHub Actions CI NOT RUN (no remote).
+- Blockers/limitations: deferred review and security items are listed in the handoff.
+- Decisions: none new.
+- Git state: `main`; Phase 01 committed locally on top of `2f60dcc`; not pushed.
+- Handoff path: `progress/handoffs/phase-01-github-diff-ingestion.md`

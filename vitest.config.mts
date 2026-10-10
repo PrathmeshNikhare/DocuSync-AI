@@ -13,6 +13,24 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.{ts,tsx}"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: ["src/**/*.test.{ts,tsx}"],
+          exclude: ["src/**/*.db.test.ts"],
+        },
+      },
+      {
+        // Needs TEST_DATABASE_URL and TEST_MIGRATION_DATABASE_URL; fails (never skips) without them.
+        extends: true,
+        test: {
+          name: "db",
+          include: ["src/**/*.db.test.ts"],
+          fileParallelism: false,
+        },
+      },
+    ],
   },
 });

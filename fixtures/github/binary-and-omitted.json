@@ -1,0 +1,30 @@
+{
+  "pull": {
+    "number": 1,
+    "title": "Add logo and regenerate lockfile",
+    "state": "open",
+    "draft": false,
+    "head": {
+      "sha": "5555555555555555555555555555555555555555",
+      "ref": "feature"
+    },
+    "base": {
+      "sha": "6666666666666666666666666666666666666666",
+      "ref": "main"
+    }
+  },
+  "files": [
+    {
+      "filename": "docs/images/logo.png",
+      "status": "added",
+      "additions": 0,
+      "deletions": 0
+    },
+    {
+      "filename": "package-lock.json",
+      "status": "modified",
+      "additions": 4210,
+      "deletions": 3987
+    }
+  ]
+}

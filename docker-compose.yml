@@ -9,9 +9,12 @@ services:
       POSTGRES_DB: docusync
     ports:
       # Loopback only: the credentials are well-known local defaults.
-      - "127.0.0.1:5432:5432"
+      # Set POSTGRES_HOST_PORT in .env if 5432 is taken by another server.
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - docusync_pgdata:/var/lib/postgresql/data
+      # Creates the least-privilege app role and the test database on first start.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U docusync -d docusync"]
       interval: 5s

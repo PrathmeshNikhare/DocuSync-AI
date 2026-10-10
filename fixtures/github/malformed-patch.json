@@ -1,0 +1,39 @@
+{
+  "pull": {
+    "number": 1,
+    "title": "Patch text that does not parse",
+    "state": "open",
+    "draft": false,
+    "head": {
+      "sha": "9999999999999999999999999999999999999999",
+      "ref": "feature"
+    },
+    "base": {
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ref": "main"
+    }
+  },
+  "files": [
+    {
+      "filename": "src/a.ts",
+      "status": "modified",
+      "additions": 0,
+      "deletions": 0,
+      "patch": "not a diff at all"
+    },
+    {
+      "filename": "src/b.ts",
+      "status": "modified",
+      "additions": 0,
+      "deletions": 1,
+      "patch": "@@ -1,2 +1,2 @@\n-only one line"
+    },
+    {
+      "filename": "src/c.ts",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1,
+      "patch": "@@ -1 +1 @@\n-x\n+y\n+extra beyond header count"
+    }
+  ]
+}

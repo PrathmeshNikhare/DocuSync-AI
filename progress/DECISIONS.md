@@ -44,3 +44,19 @@ Record material decisions. Do not use this file as a daily diary.
 - Decision: Use plain numbered SQL files in `migrations/`, applied by a small `pg`-based runner that records them in a `schema_migrations` table. The runner is built along with the first migration (Phase 01). Details are in `docs/03-data-model.md`.
 - Alternatives: Building the runner now with no tables (speculative code); `node-pg-migrate` (an extra dependency and its own DSL).
 - Consequences: The runner will need its own tests when it is written. Rollbacks are done with forward-only fix migrations.
+
+## D-008 — Read-only GitHub integration via Octokit and a GitHub App
+- Status: Accepted (user-approved 2026-10-10)
+- Date: 2026-10-10
+- Context: Phase 01 needs authenticated, least-privilege read access to PR metadata and diffs, plus webhook verification.
+- Decision: Add `@octokit/rest` and `@octokit/auth-app` as runtime dependencies, and `tsx` as a dev dependency for the TypeScript CLI scripts (`db:migrate`, `ingest`). Scripts run with `--conditions=react-server` so `server-only` modules resolve outside Next. Webhook signatures are verified with `node:crypto`, not a library. The `GitHubReader` interface has read methods only. Installation tokens are requested with `{ pull_requests: "read" }`, and a request hook blocks any non-GET call and adds a per-request timeout. There are no retry or throttling plugins.
+- Alternatives: `octokit` (the all-in-one package, larger surface); `@octokit/webhooks` (unnecessary for one HMAC check); plain `fetch` (would mean reimplementing App JWT and token exchange).
+- Consequences: The token exchange is the only non-GET request, and it runs on a separate client. Real GitHub is not exercised until someone creates a GitHub App (see docs/10). The Phase 02 permission change (Contents: read) must update `READ_ONLY_PERMISSIONS` and docs/10 together.
+
+## D-009 — Webhook only enqueues; ingestion runs separately
+- Status: Accepted (user-approved 2026-10-10)
+- Date: 2026-10-10
+- Context: Webhook handlers must return quickly, and serverless hosts may cut off work that continues after the response. There is no worker yet, and no measured need for queue infrastructure.
+- Decision: The webhook records a `queued` analysis (one per repository, PR and head commit) and returns. `ingestPullRequest` is a pure service, used today through `npm run ingest` (fixture or live). The ingestion snapshot is not persisted. How queued analyses get processed (an in-process runner, a worker, or similar) is decided when a later phase first consumes the snapshot.
+- Alternatives: Running ingestion inline after the response with Next's `after()` (simple, but no retries and fragile on serverless hosts); adding a job queue now (infrastructure without a measured need).
+- Consequences: In Phase 01, queued analyses stay `queued`. The demo path is the webhook check plus a separate `npm run ingest`. A future runner must move analyses through the states that the CHECK constraints allow.

@@ -1,0 +1,54 @@
+{
+  "pull": {
+    "number": 1,
+    "title": "Paths that must be rejected",
+    "state": "open",
+    "draft": false,
+    "head": {
+      "sha": "7777777777777777777777777777777777777777",
+      "ref": "feature"
+    },
+    "base": {
+      "sha": "8888888888888888888888888888888888888888",
+      "ref": "main"
+    }
+  },
+  "files": [
+    {
+      "filename": "../../etc/passwd",
+      "status": "added",
+      "additions": 1,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1 @@\n+root:x:0:0"
+    },
+    {
+      "filename": "docs/‮gnp.md",
+      "status": "added",
+      "additions": 1,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1 @@\n+spoofed"
+    },
+    {
+      "filename": "C:/Windows/system.ini",
+      "status": "added",
+      "additions": 1,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1 @@\n+x"
+    },
+    {
+      "filename": "docs/moved.md",
+      "status": "renamed",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1 +1 @@\n-a\n+b",
+      "previous_filename": "/etc/shadow"
+    },
+    {
+      "filename": "docs/ok.md",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1 +1 @@\n-old\n+new"
+    }
+  ]
+}

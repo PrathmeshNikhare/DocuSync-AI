@@ -18,12 +18,24 @@ Never include stack traces, secrets, raw authorization headers or private model 
 
 ## Planned endpoints
 
-### `POST /api/webhooks/github`
+### `POST /api/webhooks/github` (implemented in Phase 01)
 - Accept GitHub webhook events.
 - Verify `X-Hub-Signature-256` against the raw request body before trusting payload fields.
 - Validate event/action/repository/PR identifiers.
 - Persist idempotency state and dispatch supported events.
 - Return promptly; do not perform unbounded model work inline.
+- Implemented responses (errors use the error envelope):
+
+| Case | Status | Body |
+|---|---|---|
+| Supported `pull_request` action, new head commit | 202 | `{status: "queued", analysisId, requestId}` |
+| Redelivery, or another delivery for the same head commit | 200 | `{status: "duplicate", analysisId, requestId}` |
+| Other event, other action, a draft PR, or an installation not in `GITHUB_ALLOWED_INSTALLATION_IDS` | 202 | `{status: "ignored", reason, requestId}` (no database write) |
+| Body over 1 MiB | 413 | `PAYLOAD_TOO_LARGE` |
+| Missing or invalid signature | 401 | `INVALID_SIGNATURE` |
+| Signed, but bad headers, JSON or payload | 400 | `INVALID_HEADERS`, `INVALID_JSON`, `INVALID_PAYLOAD` |
+| Webhook secret or installation allowlist not configured (fails closed) | 503 | `NOT_CONFIGURED` |
+| Database failure | 500 | `INTERNAL_ERROR` |
 
 ### `POST /api/analyses`
 - Authenticated user-triggered analysis, if needed.

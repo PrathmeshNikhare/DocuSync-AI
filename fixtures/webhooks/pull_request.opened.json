@@ -1,0 +1,31 @@
+{
+  "action": "opened",
+  "number": 42,
+  "pull_request": {
+    "number": 42,
+    "title": "Add NEW_FLAG feature toggle",
+    "draft": false,
+    "head": {
+      "sha": "1111111111111111111111111111111111111111",
+      "ref": "feature"
+    },
+    "base": {
+      "sha": "2222222222222222222222222222222222222222",
+      "ref": "main"
+    }
+  },
+  "repository": {
+    "id": 123456789,
+    "name": "example-repo",
+    "full_name": "example-org/example-repo",
+    "owner": {
+      "login": "example-org"
+    }
+  },
+  "installation": {
+    "id": 987654
+  },
+  "sender": {
+    "login": "octocat"
+  }
+}

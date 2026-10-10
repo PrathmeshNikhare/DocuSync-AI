@@ -49,6 +49,16 @@ Keep these concepts independently testable:
 - Next.js 16.4 App Router under `src/app/`. `cacheComponents` is enabled, so `GET` handlers that read no request or runtime data are prerendered at build time.
 - `src/app/api/health/route.ts`: static liveness endpoint. It does not check the database or the model.
 - `src/lib/schemas.ts`: framework-independent Zod contracts for evidence references, impact candidates, analysis state and its transitions, patch proposals, review decisions (a client input schema and a separate server-built record schema) and the API error envelope.
-- `src/lib/env.ts`: lazy, server-only environment validation. Only `DATABASE_URL` is validated so far.
-- `src/lib/db/pool.ts`: lazy, server-only `pg` pool. No queries, tables or migrations exist yet.
-- None of the module folders listed above (`github/`, `diff-analyzer/`, and so on) exist yet. Each one is created in the phase that first needs it.
+- `src/lib/env.ts`: lazy, server-only environment validation, in groups (database, webhook secret, GitHub App, migrations), each validated only where it's used.
+- `src/lib/db/pool.ts`: lazy, server-only `pg` pool with connection, idle and statement timeouts.
+
+## Implemented so far (Phase 01)
+
+- `POST /api/webhooks/github` (`src/app/api/webhooks/github/route.ts`) is a thin wrapper around `src/lib/github/webhook-handler.ts`. The handler reads at most 1 MiB, verifies the HMAC signature over the raw bytes, then validates headers and payload. Supported `pull_request` actions are `opened`, `synchronize`, `reopened` and `ready_for_review`; drafts are ignored. The handler only queues work: it never fetches from GitHub or runs a model inline.
+- `src/lib/db/analyses.ts`: `enqueueAnalysis` upserts the repository and PR and inserts a `queued` analysis keyed on `github:pr:<repoId>:<number>:<headSha>`, all in one transaction. Redeliveries and concurrent duplicates return the existing analysis (D-009).
+- **Nothing consumes queued analyses yet (D-009).** Ingestion is a separate service, `ingestPullRequest(reader, ref, { expectedHeadSha? })` in `src/lib/ingest.ts`, run by `npm run ingest`. It fails with `GITHUB_STALE_HEAD` if the PR head or base moves during ingestion, or if the head isn't the expected commit. A future runner must pass the analysis's `head_sha` as `expectedHeadSha`. A runner that connects the queue to ingestion is decided in a later phase.
+- `src/lib/github/reader.ts` defines the `GitHubReader` interface: `getPullRequest` and `listFiles` only, no writes. There are two implementations. `octokit-reader.ts` is the live GitHub App reader: its installation token is requested with `pull_requests: read` only, a request hook refuses any non-GET call and adds a 10 s timeout, file listing stops at 300 files, and errors are mapped to safe codes. `fixture-reader.ts` serves `fixtures/github/*.json`.
+- `src/lib/diff-analyzer/normalize.ts` validates every file path and parses hunks. Unsafe files are rejected by index. Oversized, binary or malformed patches keep the file but drop the hunks (`patchState`). That includes patch text Postgres can't store and hunk numbers outside the safe-integer range, both marked `malformed`. The result is a `PullRequestSnapshot` (Zod) and is not persisted.
+- `src/lib/db/migrate.ts` and `scripts/migrate.ts` form the migration runner (D-007). `migrations/0001_ingestion.sql` creates `repositories`, `pull_requests` and `analyses`.
+- `src/lib/log.ts`: structured JSON logs with a closed set of fields.
+- Not created yet: `impact-engine/`, `llm/`, `patch-validator/`, `review/` and `security/`.

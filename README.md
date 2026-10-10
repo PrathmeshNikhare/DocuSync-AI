@@ -14,27 +14,39 @@ Build a GitHub-integrated documentation maintenance assistant that:
 
 ## Local setup
 
-Requires Node.js 24 (see `.nvmrc`) and, from Phase 01 onward, Docker for PostgreSQL.
+Requires Node.js 24 (see `.nvmrc`) and Docker for PostgreSQL.
 
 ```bash
 npm ci
 cp .env.example .env.local      # placeholders only; never commit real values
+                                # set GITHUB_WEBHOOK_SECRET (20+ chars) and
+                                # GITHUB_ALLOWED_INSTALLATION_IDS to receive webhooks
+docker compose up -d --wait postgres   # first start creates docusync_app and docusync_test
+npm run db:migrate              # applies migrations/ as the schema owner
 npm run format:check
 npm run lint
 npm run typecheck
-npm test                        # unit tests; no database or model required
+npm test                        # unit tests; no database, GitHub or model required
+npm run test:db                 # database tests against docusync_test (needs Postgres)
 npm run build                   # no .env needed at build time
 npm run dev                     # http://localhost:3000, health: /api/health
 ```
 
-PostgreSQL (not used by any code path yet; no migrations exist in Phase 00):
+The container binds `127.0.0.1` only. If another PostgreSQL already listens on port 5432, `docker compose up` fails with "ports are not available". Put `POSTGRES_HOST_PORT=55432` (or any free port) in an ignored `.env` file, which docker compose reads, and use the same port in the URLs in `.env.local`.
+
+The init script in `db/init/` runs only when the data volume is first created. If you created the volume before it existed, recreate it with `docker compose down -v` (this deletes all local data in it).
+
+### Pull request ingestion without GitHub credentials (fixture mode)
 
 ```bash
-docker compose up -d --wait postgres
-docker compose stop
+npm run ingest -- --fixture env-var-change   # prints the normalized snapshot as JSON
 ```
 
-The container binds `127.0.0.1:5432` only. If another PostgreSQL already listens on port 5432, `docker compose up` fails with "ports are not available". Either stop the other server, or change the host port in `docker-compose.yml` and `DATABASE_URL` together (for example `127.0.0.1:55432:5432` with `localhost:55432`).
+The fixtures in `fixtures/github/` are synthetic. Live mode (`npm run ingest -- --live owner/repo#123 --installation <id>`) needs a GitHub App; see `docs/10-deployment-and-operations.md`.
+
+### Sending a test webhook locally
+
+With `GITHUB_ALLOWED_INSTALLATION_IDS=987654` (the fixture's installation), sign `fixtures/webhooks/pull_request.opened.json` with your `GITHUB_WEBHOOK_SECRET` (HMAC-SHA256 of the exact file bytes), and POST it to `/api/webhooks/github` with the headers `x-github-event: pull_request`, `x-github-delivery: <uuid>` and `x-hub-signature-256: sha256=<hex>`. The first delivery returns 202 `queued`; sending it again returns 200 `duplicate`.
 
 ## Harness workflow
 

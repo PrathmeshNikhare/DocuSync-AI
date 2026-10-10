@@ -258,3 +258,95 @@ export const apiErrorSchema = z.strictObject({
   }),
 });
 export type ApiError = z.infer<typeof apiErrorSchema>;
+
+// ---- Pull request ingestion (Phase 01) ----
+
+export const DIFF_LIMITS = {
+  maxFiles: 300,
+  maxPatchCharsPerFile: 64_000,
+  maxTotalPatchChars: 1_000_000,
+  maxHunksPerFile: 200,
+} as const;
+
+/** GitHub owner or repository name. Never "." or "..". */
+export const githubNameSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_.-]{1,100}$/)
+  .refine((s) => s !== "." && s !== "..", { message: "Invalid name" });
+
+/** Largest value of a Postgres `integer` column. */
+export const PG_INT_MAX = 2_147_483_647;
+
+export const pullRequestRefSchema = z.strictObject({
+  owner: githubNameSchema,
+  repo: githubNameSchema,
+  number: z.int().min(1).max(PG_INT_MAX),
+});
+export type PullRequestRef = z.infer<typeof pullRequestRefSchema>;
+
+export const hunkSchema = z.strictObject({
+  oldStart: z.int().min(0),
+  oldLines: z.int().min(0),
+  newStart: z.int().min(0),
+  newLines: z.int().min(0),
+  /** Raw hunk body lines, each prefixed with " ", "+", "-" or "\". Untrusted data. */
+  lines: z.array(text(DIFF_LIMITS.maxPatchCharsPerFile)),
+});
+export type Hunk = z.infer<typeof hunkSchema>;
+
+export const changedFileStatusSchema = z.enum([
+  "added",
+  "removed",
+  "modified",
+  "renamed",
+  "copied",
+  "changed",
+  "unchanged",
+]);
+
+/**
+ * included: hunks parsed. omitted: GitHub sent no patch (binary or very large).
+ * too_large: patch exceeded a per-file or total limit and was dropped.
+ * malformed: patch did not parse as unified-diff hunks and was dropped.
+ */
+export const patchStateSchema = z.enum([
+  "included",
+  "omitted",
+  "too_large",
+  "malformed",
+]);
+
+export const changedFileSchema = z
+  .strictObject({
+    path: repoPathSchema,
+    previousPath: repoPathSchema.optional(),
+    status: changedFileStatusSchema,
+    additions: z.int().min(0),
+    deletions: z.int().min(0),
+    patchState: patchStateSchema,
+    hunks: z.array(hunkSchema).max(DIFF_LIMITS.maxHunksPerFile),
+  })
+  .refine((f) => f.patchState === "included" || f.hunks.length === 0, {
+    message: "Only files with an included patch may carry hunks",
+    path: ["hunks"],
+  });
+export type ChangedFile = z.infer<typeof changedFileSchema>;
+
+/** A file left out of the snapshot. The raw path is never echoed back. */
+export const rejectedFileSchema = z.strictObject({
+  index: z.int().min(0),
+  reason: z.enum(["invalid_path", "invalid_previous_path", "invalid_entry"]),
+});
+export type RejectedFile = z.infer<typeof rejectedFileSchema>;
+
+export const pullRequestSnapshotSchema = z.strictObject({
+  ref: pullRequestRefSchema,
+  title: text(1000),
+  headSha: gitShaSchema,
+  baseSha: gitShaSchema,
+  files: z.array(changedFileSchema).max(DIFF_LIMITS.maxFiles),
+  rejectedFiles: z.array(rejectedFileSchema).max(DIFF_LIMITS.maxFiles),
+  /** True when GitHub listed more files than DIFF_LIMITS.maxFiles. */
+  filesTruncated: z.boolean(),
+});
+export type PullRequestSnapshot = z.infer<typeof pullRequestSnapshotSchema>;
