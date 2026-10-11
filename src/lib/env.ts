@@ -32,6 +32,76 @@ export type GitHubAppEnv = z.infer<typeof githubAppEnvSchema>;
 
 const migrationEnvSchema = z.object({ MIGRATION_DATABASE_URL: postgresUrl });
 
+// Prompts carry repository content, so the endpoint must not embed credentials
+// (they would end up in error paths) and should stay on a private network (docs/07).
+// `KEY=` in an env file means "not set": use the default instead of coercing "" to 0.
+const unsetIfEmpty = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((v) => (v === "" ? undefined : v), schema);
+
+const isLoopback = (url: string) =>
+  /^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\])$/i.test(new URL(url).hostname);
+
+const ollamaEnvSchema = z
+  .object({
+    OLLAMA_BASE_URL: unsetIfEmpty(
+      z
+        .url({ protocol: /^https?$/ })
+        .refine((u) => !new URL(u).username && !new URL(u).password, {
+          message: "Credentials in the URL are not allowed",
+        })
+        .default("http://127.0.0.1:11434"),
+    ),
+    OLLAMA_MODEL: unsetIfEmpty(
+      z
+        .string()
+        .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/)
+        .optional(),
+    ),
+    OLLAMA_TIMEOUT_MS: unsetIfEmpty(
+      z.coerce.number().int().min(1_000).max(600_000).default(120_000),
+    ),
+    OLLAMA_NUM_CTX: unsetIfEmpty(
+      z.coerce.number().int().min(2_048).max(131_072).default(8_192),
+    ),
+    // Plain http beyond loopback sends repository content unencrypted to a server
+    // with no authentication; it must be chosen explicitly.
+    OLLAMA_ALLOW_INSECURE_HTTP: unsetIfEmpty(
+      z.enum(["true", "false"]).default("false"),
+    ),
+  })
+  .refine(
+    (e) =>
+      new URL(e.OLLAMA_BASE_URL).protocol === "https:" ||
+      isLoopback(e.OLLAMA_BASE_URL) ||
+      e.OLLAMA_ALLOW_INSECURE_HTTP === "true",
+    {
+      message:
+        "Use https for a non-loopback Ollama, or set OLLAMA_ALLOW_INSECURE_HTTP",
+      path: ["OLLAMA_BASE_URL"],
+    },
+  );
+
+export interface OllamaEnv {
+  baseUrl: string;
+  model: string;
+  timeoutMs: number;
+  numCtx: number;
+}
+
+/** Undefined when no model is configured: callers then run deterministic-only. */
+export function getOllamaEnv(
+  source: Record<string, string | undefined> = process.env,
+): OllamaEnv | undefined {
+  const env = parseEnv(ollamaEnvSchema, source);
+  if (!env.OLLAMA_MODEL) return undefined;
+  return {
+    baseUrl: env.OLLAMA_BASE_URL,
+    model: env.OLLAMA_MODEL,
+    timeoutMs: env.OLLAMA_TIMEOUT_MS,
+    numCtx: env.OLLAMA_NUM_CTX,
+  };
+}
+
 /** Throws an error naming the invalid keys only; values (possibly secrets) are never included. */
 export function parseEnv<T extends z.ZodType>(
   schema: T,

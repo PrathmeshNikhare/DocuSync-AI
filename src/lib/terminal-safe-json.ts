@@ -10,6 +10,11 @@ const UNSAFE_FOR_TERMINAL = /[\u0080-\u009f\p{Cf}\u2028\u2029]/gu;
 export function toTerminalSafeJson(value: unknown): string {
   return JSON.stringify(value, null, 2).replace(
     UNSAFE_FOR_TERMINAL,
-    (c) => `\\u${c.codePointAt(0)!.toString(16).padStart(4, "0")}`,
+    // One escape per UTF-16 unit: an astral character (e.g. a Unicode tag character)
+    // becomes a surrogate pair, which JSON reads back as the same character.
+    (c) =>
+      [...Array(c.length).keys()]
+        .map((i) => `\\u${c.charCodeAt(i).toString(16).padStart(4, "0")}`)
+        .join(""),
   );
 }

@@ -28,6 +28,15 @@ describe("toTerminalSafeJson", () => {
     expect(JSON.parse(toTerminalSafeJson(risky))).toEqual(risky);
   });
 
+  it("escapes astral format characters as surrogate pairs that round-trip", () => {
+    // U+E0041 TAG LATIN CAPITAL LETTER A: invisible, used to smuggle hidden ASCII.
+    const tag = String.fromCodePoint(0xe0041);
+    const out = toTerminalSafeJson({ t: `a${tag}b` });
+    expect(out).not.toContain(tag);
+    expect(out).toContain("\\udb40\\udc41");
+    expect(JSON.parse(out)).toEqual({ t: `a${tag}b` });
+  });
+
   it("leaves ordinary text, including non-ASCII letters, unchanged", () => {
     const value = { a: "na\u00efve caf\u00e9 \u65e5\u672c", n: 1 };
     expect(toTerminalSafeJson(value)).toBe(JSON.stringify(value, null, 2));

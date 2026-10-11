@@ -53,6 +53,16 @@ npm run eval:impact                            # regenerates docs/evaluation/imp
 
 The engine is deterministic and does not run on live repositories yet. The baseline numbers describe the synthetic fixtures only.
 
+### Model assessment and patch proposals (Phase 03)
+
+```bash
+npm run propose -- --fixture env-var-renamed   # deterministic result + model assessment + validated patch, as JSON
+npm run eval:llm                               # model-assisted vs deterministic; writes docs/evaluation/llm-assisted.md
+npm run test:ollama                            # opt-in tests against a real Ollama
+```
+
+These need a local Ollama and `OLLAMA_MODEL` (for example `llama3.2:3b`) in `.env.local`. Without `OLLAMA_MODEL`, `propose` prints a deterministic-only result. Proposals are printed, never applied or written anywhere; see `docs/06-llm-and-patches.md`.
+
 ### Sending a test webhook locally
 
 With `GITHUB_ALLOWED_INSTALLATION_IDS=987654` (the fixture's installation), sign `fixtures/webhooks/pull_request.opened.json` with your `GITHUB_WEBHOOK_SECRET` (HMAC-SHA256 of the exact file bytes), and POST it to `/api/webhooks/github` with the headers `x-github-event: pull_request`, `x-github-delivery: <uuid>` and `x-hub-signature-256: sha256=<hex>`. The first delivery returns 202 `queued`; sending it again returns 200 `duplicate`.

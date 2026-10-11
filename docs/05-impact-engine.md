@@ -91,3 +91,9 @@ Code: `src/lib/impact-engine/`. A pure function, `analyzeImpact(snapshot, docs, 
   - **Plain text in engine-written fields:** names and paths that the engine writes into `reason` and notes are reduced to plain characters (letters, digits, `_$:.-/@[]{}()+` and space; anything else becomes `?`). Quoted evidence excerpts are kept byte-exact.
 - **Known blind spots:** behaviour changes that leave no name, path or key in the diff (false negatives); generic exported names that also appear in prose, such as `config` (false positives); dynamic env access; re-exports from other modules; languages other than TS/JS; semantic changes; `package.json` keys whose block header is out of view but which aren't scripts (guessed by the value heuristic). See `docs/evaluation/impact-baseline.md`.
 - **Not done yet:** a wall-clock timeout and memory limit (planned for the runner, using a worker thread). The budgets above bound the work but not the time per regex call.
+
+## Model-assisted mode (Phase 03)
+
+- `assistImpact` (`src/lib/assist/`) asks the model to assess each flagged candidate: `needs_update`, `no_update` or `uncertain`. The assessment is stored next to the candidate and never changes it (D-011).
+- In the evaluation, a flagged doc the model judges `no_update` counts as not flagged. The model never sees unflagged docs, so this mode can only remove false positives, not recover missed docs.
+- Results for `llama3.2:3b` are in `docs/evaluation/llm-assisted.md` and docs/08. In every run so far the model judged every doc it assessed `needs_update` (in runs 1-5 one assessment per run was rejected over an off-by-one evidence citation; fixed in run 6), so model-assisted flagging equals the deterministic baseline.

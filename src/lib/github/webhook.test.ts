@@ -5,9 +5,9 @@ import {
   MAX_WEBHOOK_BODY_BYTES,
   idempotencyKey,
   parseWebhook,
-  readBodyLimited,
   verifySignature,
 } from "./webhook";
+import { readBodyLimited } from "@/lib/read-body";
 
 const SECRET = "test-webhook-secret-0123456789";
 const sign = (body: string | Uint8Array, secret = SECRET) =>

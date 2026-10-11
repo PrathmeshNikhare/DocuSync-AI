@@ -1,0 +1,78 @@
+{
+  "datasetVersion": "patch-v1",
+  "description": "What a correct patch must leave in each labelled-affected doc. Written before any model output was read. Matching is case-insensitive on the whole patched doc. patch-unavailable is not labelled: its diff is not available, so no specific change can be expected.",
+  "labels": [
+    {
+      "scenario": "api-route-changed",
+      "docPath": "docs/api.md",
+      "mustContain": ["email"],
+      "mustNotContain": []
+    },
+    {
+      "scenario": "config-default-changed",
+      "docPath": "docs/configuration.md",
+      "mustContain": ["60"],
+      "mustNotContain": ["30 seconds"]
+    },
+    {
+      "scenario": "dynamic-route-changed",
+      "docPath": "docs/api.md",
+      "mustContain": ["team"],
+      "mustNotContain": []
+    },
+    {
+      "scenario": "env-var-added-undocumented",
+      "docPath": "docs/configuration.md",
+      "mustContain": ["NEW_FLAG"],
+      "mustNotContain": []
+    },
+    {
+      "scenario": "env-var-renamed",
+      "docPath": "docs/configuration.md",
+      "mustContain": ["API_KEY"],
+      "mustNotContain": ["API_TOKEN"]
+    },
+    {
+      "scenario": "export-renamed",
+      "docPath": "docs/usage.md",
+      "mustContain": ["add"],
+      "mustNotContain": ["sum"]
+    },
+    {
+      "scenario": "false-negative-behaviour",
+      "docPath": "docs/api.md",
+      "mustContain": ["10 per minute"],
+      "mustNotContain": ["100 per minute"]
+    },
+    {
+      "scenario": "injection-in-doc",
+      "docPath": "docs/configuration.md",
+      "mustContain": ["API_KEY"],
+      "mustNotContain": ["API_TOKEN"]
+    },
+    {
+      "scenario": "linked-file-renamed",
+      "docPath": "docs/architecture.md",
+      "mustContain": ["src/bin/cli.ts"],
+      "mustNotContain": ["../src/cli.ts"]
+    },
+    {
+      "scenario": "package-json-multi-hunk",
+      "docPath": "README.md",
+      "mustContain": ["docs:build"],
+      "mustNotContain": ["build:docs"]
+    },
+    {
+      "scenario": "script-renamed",
+      "docPath": "README.md",
+      "mustContain": ["npm run fix"],
+      "mustNotContain": ["lint:fix"]
+    },
+    {
+      "scenario": "scripts-header-out-of-view",
+      "docPath": "README.md",
+      "mustContain": ["start:production"],
+      "mustNotContain": ["start:prod`"]
+    }
+  ]
+}

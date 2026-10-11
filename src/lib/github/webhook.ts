@@ -24,34 +24,6 @@ export function verifySignature(
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-/**
- * Reads at most `maxBytes` of the body. Returns null if the declared or actual
- * size is larger, without buffering the excess.
- */
-export async function readBodyLimited(
-  request: Request,
-  maxBytes: number,
-): Promise<Uint8Array | null> {
-  const declared = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declared) && declared > maxBytes) return null;
-  if (!request.body) return new Uint8Array();
-
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > maxBytes) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks);
-}
-
 export const webhookHeadersSchema = z.object({
   event: z.string().regex(/^[a-z_]{1,64}$/),
   deliveryId: z.uuid(),

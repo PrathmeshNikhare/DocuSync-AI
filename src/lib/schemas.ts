@@ -199,23 +199,62 @@ export const analysisStateSchema = z
   );
 export type AnalysisState = z.infer<typeof analysisStateSchema>;
 
-export const patchProposalSchema = z.strictObject({
-  candidateId: z.uuid(),
-  targetPath: repoPathSchema,
-  baseBlobSha: gitShaSchema,
-  patch: text(LIMITS.patchChars).min(1),
-  rationale: label(LIMITS.rationale),
-  evidence: z.array(evidenceReferenceSchema).max(LIMITS.evidencePerItem),
-  validationStatus: z.enum(["pending", "valid", "invalid"]),
-  model: z
-    .strictObject({
-      provider: label(64),
-      modelId: label(128),
-      promptVersion: label(64),
-    })
-    .optional(),
+export const modelMetaSchema = z.strictObject({
+  provider: label(64),
+  modelId: label(128),
+  promptVersion: label(64),
 });
+export type ModelMeta = z.infer<typeof modelMetaSchema>;
+
+export const patchProposalSchema = z
+  .strictObject({
+    /** Set when the proposal is persisted; in-memory proposals have none (D-011). */
+    candidateId: z.uuid().optional(),
+    targetPath: repoPathSchema,
+    /** PR head commit the evidence was read from. */
+    headSha: gitShaSchema,
+    /** Git blob id of the doc the patch applies to. */
+    baseBlobSha: gitShaSchema,
+    patch: text(LIMITS.patchChars).min(1),
+    rationale: label(LIMITS.rationale),
+    evidence: z.array(evidenceReferenceSchema).max(LIMITS.evidencePerItem),
+    validationStatus: z.enum(["pending", "valid", "invalid"]),
+    validationIssues: z.array(errorCodeSchema).max(20),
+    model: modelMetaSchema.optional(),
+  })
+  .refine(
+    (p) =>
+      p.validationStatus === "invalid"
+        ? p.validationIssues.length > 0
+        : p.validationIssues.length === 0,
+    {
+      message:
+        "Only an invalid proposal has validation issues, and it must have some",
+      path: ["validationIssues"],
+    },
+  );
 export type PatchProposal = z.infer<typeof patchProposalSchema>;
+
+/**
+ * The model's opinion on one deterministic candidate. Kept apart from the
+ * candidate so deterministic evidence is never rewritten by model output.
+ */
+export const modelAssessmentSchema = z.strictObject({
+  docPath: repoPathSchema,
+  verdict: z.enum(["needs_update", "no_update", "uncertain"]),
+  explanation: label(LIMITS.reason),
+  /** Indexes into the candidate's evidence: the model can cite, not add, evidence. */
+  citedEvidence: z
+    .array(
+      z
+        .int()
+        .min(0)
+        .max(LIMITS.evidencePerItem - 1),
+    )
+    .max(LIMITS.evidencePerItem),
+  model: modelMetaSchema,
+});
+export type ModelAssessment = z.infer<typeof modelAssessmentSchema>;
 
 /**
  * Review decision as sent by a client. It deliberately has no reviewer or

@@ -19,7 +19,7 @@ export default defineConfig({
         test: {
           name: "unit",
           include: ["src/**/*.test.{ts,tsx}"],
-          exclude: ["src/**/*.db.test.ts"],
+          exclude: ["src/**/*.db.test.ts", "src/**/*.ollama.test.ts"],
         },
       },
       {
@@ -28,6 +28,15 @@ export default defineConfig({
         test: {
           name: "db",
           include: ["src/**/*.db.test.ts"],
+          fileParallelism: false,
+        },
+      },
+      {
+        // Needs OLLAMA_MODEL and a running Ollama; fails (never skips) without them.
+        extends: true,
+        test: {
+          name: "ollama",
+          include: ["src/**/*.ollama.test.ts"],
           fileParallelism: false,
         },
       },

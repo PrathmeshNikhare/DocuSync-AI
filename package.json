@@ -13,10 +13,13 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --project unit",
     "test:db": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run --project db",
+    "test:ollama": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run --project ollama",
     "db:migrate": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/migrate.ts",
     "ingest": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/ingest.ts",
     "analyze": "node --import tsx scripts/analyze.ts",
     "eval:impact": "node --import tsx scripts/eval-impact.ts",
+    "propose": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/propose.ts",
+    "eval:llm": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/eval-llm.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

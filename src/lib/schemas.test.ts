@@ -8,6 +8,7 @@ import {
   evidenceReferenceSchema,
   gitShaSchema,
   impactCandidateSchema,
+  modelAssessmentSchema,
   patchProposalSchema,
   repoPathSchema,
   reviewDecisionInputSchema,
@@ -52,11 +53,13 @@ const candidate = {
 const proposal = {
   candidateId: UUID,
   targetPath: "docs/configuration.md",
+  headSha: "b".repeat(40),
   baseBlobSha: SHA1,
   patch: "@@ -1 +1,2 @@\n # Config\n+NEW_FLAG enables x.\n",
   rationale: "Documents the new flag.",
   evidence: [evidence],
   validationStatus: "pending",
+  validationIssues: [],
   model: { provider: "ollama", modelId: "llama3", promptVersion: "p1" },
 } as const;
 
@@ -316,10 +319,33 @@ describe("patchProposalSchema", () => {
   it("accepts a valid proposal, with or without model metadata", () => {
     expectValid(patchProposalSchema, proposal);
     expectValid(patchProposalSchema, { ...proposal, model: undefined });
+    // In-memory proposals have no persisted candidate yet (D-011).
+    expectValid(patchProposalSchema, { ...proposal, candidateId: undefined });
+    expectValid(patchProposalSchema, {
+      ...proposal,
+      validationStatus: "invalid",
+      validationIssues: ["PATCH_STALE_BASE"],
+    });
   });
   it.each([
     ["absolute target", { targetPath: "/etc/hosts" }, "targetPath"],
     ["bad sha", { baseBlobSha: "main" }, "baseBlobSha"],
+    ["missing head sha", { headSha: undefined }, "headSha"],
+    [
+      "invalid without issues",
+      { validationStatus: "invalid" },
+      "validationIssues",
+    ],
+    [
+      "valid with issues",
+      { validationStatus: "valid", validationIssues: ["PATCH_EMPTY"] },
+      "validationIssues",
+    ],
+    [
+      "free-text issue",
+      { validationStatus: "invalid", validationIssues: ["bad patch"] },
+      "validationIssues.0",
+    ],
     ["empty patch", { patch: "" }, "patch"],
     ["NUL in patch", { patch: "+a\u0000\n" }, "patch"],
     ["oversized patch", { patch: "x".repeat(LIMITS.patchChars + 1) }, "patch"],
@@ -337,6 +363,32 @@ describe("patchProposalSchema", () => {
     ["unknown key", { autoMerge: true }, ""],
   ])("rejects %s", (_label, override, path) => {
     expectInvalid(patchProposalSchema, { ...proposal, ...override }, path);
+  });
+});
+
+describe("modelAssessmentSchema", () => {
+  const assessment = {
+    docPath: "docs/configuration.md",
+    verdict: "needs_update",
+    explanation: "The doc lists the renamed variable.",
+    citedEvidence: [0, 2],
+    model: {
+      provider: "ollama",
+      modelId: "llama3",
+      promptVersion: "assess-v1",
+    },
+  } as const;
+  it("accepts a valid assessment", () => {
+    expectValid(modelAssessmentSchema, assessment);
+  });
+  it.each([
+    ["unknown verdict", { verdict: "approve" }, "verdict"],
+    ["blank explanation", { explanation: " " }, "explanation"],
+    ["negative evidence index", { citedEvidence: [-1] }, "citedEvidence.0"],
+    ["missing model metadata", { model: undefined }, "model"],
+    ["unknown key", { confidence: 0.97 }, ""],
+  ])("rejects %s", (_label, override, path) => {
+    expectInvalid(modelAssessmentSchema, { ...assessment, ...override }, path);
   });
 });
 

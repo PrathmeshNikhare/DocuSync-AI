@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { EnqueueResult, PullRequestWork } from "@/lib/analysis-work";
 import { logEvent } from "@/lib/log";
+import { readBodyLimited } from "@/lib/read-body";
 import type { ApiError } from "@/lib/schemas";
 import {
   MAX_WEBHOOK_BODY_BYTES,
   idempotencyKey,
   parseWebhook,
-  readBodyLimited,
   verifySignature,
   webhookHeadersSchema,
 } from "./webhook";

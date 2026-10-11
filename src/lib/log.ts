@@ -10,6 +10,10 @@ export interface LogFields {
   outcome?: string;
   code?: string;
   analysisId?: string;
+  /** Model id and prompt version of an LLM call; never the prompt itself. */
+  model?: string;
+  promptVersion?: string;
+  durationMs?: string;
 }
 
 const ALLOWED: readonly (keyof LogFields)[] = [
@@ -20,6 +24,9 @@ const ALLOWED: readonly (keyof LogFields)[] = [
   "outcome",
   "code",
   "analysisId",
+  "model",
+  "promptVersion",
+  "durationMs",
 ];
 
 export function logEvent(name: string, fields: LogFields): void {

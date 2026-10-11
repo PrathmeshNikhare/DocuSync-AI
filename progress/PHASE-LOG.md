@@ -162,3 +162,57 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
 - Decisions: none new.
 - Git state: `main`; Phase 02 committed locally on top of `55989bf`; not pushed.
 - Handoff path: `progress/handoffs/phase-02-impact-engine.md`
+
+### 2026-10-11 — Phase 03 — IN PROGRESS (local checks PASS)
+- Scope: the approved Phase 03 plan (D-011): LLM provider interface and Ollama transport, versioned prompts, structured output validation, patch path policy and validator, model-assisted orchestration, opt-in live tests and model-assisted evaluation. Assisted mode sees deterministic candidates only. Allowed patch targets are root `*.md` and `docs/**`.
+- Changes: new `src/lib/llm/`, `src/lib/patches/`, `src/lib/assist/`, `src/lib/read-body.ts` (moved from `github/webhook.ts`); Ollama env group; log fields for model calls; proposal and assessment schemas; `propose`, `eval:llm` and `test:ollama` scripts; patch labels `patch-v1`; docs 02, 05, 06, 07, 08, README and `.env.example`.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (505 passed), `test:db` (18), `test:ollama` with `OLLAMA_MODEL=llama3.2:3b` (4; exits 1 without a model), `build`, `eval:impact` (baseline unchanged), `npm audit --omit=dev` (0). `eval:llm` ran 5 times. 10 mutation checks were all caught.
+- Test results: see the handoff. Evaluation: run 1 (untuned) produced 0 valid patches out of 12. After three assist-policy changes made on the same fixtures (documented in docs/08): 8 valid out of 11, with 7 label passes out of 12 labels. Run 5 repeated run 4 exactly, apart from latency. Model-assisted flagging equals the deterministic baseline in every run.
+- Blockers/limitations: tuned on the evaluation fixtures; the model never demotes a doc; validation can't judge prose; no total time budget per PR; no persistence or runner.
+- Decisions: D-011.
+- Git state: `main`, HEAD `65d3b0f`, Phase 03 uncommitted.
+- Handoff path: `progress/handoffs/phase-03-llm-patches.md`
+
+### 2026-10-11 — Phase 03 — IN PROGRESS (review fixes applied)
+- Scope: the user-selected `/review` fixes M1-M4, L1-L3, T1-T3 and doc claims. The reviewer agent hit an API rate limit, so the review ran in the main session; every finding was probed before fixing.
+- Changes:
+  - **M1:** links (absolute, `//host`, `www.`) must exactly match known links.
+  - **M2:** `javascript:`/`vbscript:` rejected anywhere after decoding character references and removing whitespace; `data:`/`file:` also as reference-definition targets; event handlers after `/`; HTML and link checks run on all added lines joined.
+  - **M3:** empty `OLLAMA_*` values mean the default.
+  - **M4:** retries carry `attempt` and Ollama uses seed `41 + attempt`; citation indexes are bounded in the output schema (`assess-v2`).
+  - **L1:** no-op edits are dropped. **L2:** a throwing provider maps to `LLM_UNAVAILABLE`. **L3:** carriage returns are allowed only at the end of a line.
+  - **Tests (T1-T3):** insertion-only hunks, empty docs, the throwing provider, empty env values and the `.env.example` file, and every probed bypass.
+  - **Docs:** docs 05, 06, 07 and 08 corrected; `assist-v4`.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (532 passed), `test:db` (18), `test:ollama` (4), `build`, `eval:impact` (baseline unchanged), `eval:llm` (run 6). Also 11 mutation checks (all caught, one only after adding a host-prefix test), validator timing on hostile input (worst 39 ms), and an invisible-character scan (clean).
+- Test results: 532 unit, 18 DB, 4 live. Run 6: 9 valid proposals out of 12 requests, labels 8 pass, 1 fail, 2 no valid patch, 1 not attempted; flagging unchanged.
+- Blockers/limitations: L4-L6 documented, not fixed; evaluation tuned on its own fixtures; run 6 latency likely inflated by a concurrent build.
+- Decisions: none new (D-011 stands).
+- Git state: `main`, HEAD `65d3b0f`, Phase 03 uncommitted.
+- Handoff path: `progress/handoffs/phase-03-llm-patches.md` (updated)
+
+### 2026-10-11 — Phase 03 — IN PROGRESS (security-check fixes applied)
+- Scope: the user-selected `/security-check` fixes M1-M4, L1-L3, I1, I3 and doc claims. The security-reviewer agent's findings were reproduced with read-only probes before fixing (one magnitude corrected: evidence is capped at 12 items, not 50).
+- Changes:
+  - **M1, M2, L2:** new `src/lib/patches/content.ts`. Link targets are extracted like a Markdown renderer, decoded (escapes, references without a digit cap), and resolved like a browser. External links must exactly match known ones; `javascript:`, `vbscript:`, `data:` and `file:` are rejected. Any added raw HTML not already in the doc byte-for-byte is rejected, including comments.
+  - **M3:** allowlist narrowed to `.md` and `.markdown`; AI-agent instruction files are denied (D-011 updated).
+  - **M4:** model explanations and rationales with links, HTML or hidden characters are replaced with a fixed notice.
+  - **L1:** smaller context budgets, an evidence-excerpt budget, and a prompt-size guard (`LLM_CONTEXT_TOO_LARGE`).
+  - **L3:** https required beyond loopback unless `OLLAMA_ALLOW_INSECURE_HTTP=true`; `eval:llm` version check hardened.
+  - **I1:** `toTerminalSafeJson` escapes astral characters as surrogate pairs. **I3:** body-timeout test against a real local server.
+  - `assist-v5`; docs 06, 07 and 08, D-011 and `.env.example` updated.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (567 passed), `test:db` (18), `test:ollama` (4), `build`, `eval:impact` (baseline unchanged), `eval:llm` (run 7), `npm audit --omit=dev` (0). Also 12 mutation checks (all caught), timing on 1 MB of hostile text (worst about 230 ms), and an invisible-character scan (clean). A first run-7 start was stopped because the assist policy version had not been bumped; it wrote nothing.
+- Test results: 567 unit, 18 DB, 4 live. Run 7: 8 valid proposals out of 12 requests; labels 7 pass, 1 fail, 3 no valid patch, 1 not attempted. The `injection-in-doc` patch is now rejected because the model rewrote the injected HTML comment. Latency roughly doubled for an unidentified reason.
+- Blockers/limitations: L4 (stale-base check tautological until GitHub-sourced docs), I2, I5 deferred; validator is not a sanitizer; evaluation tuned on its own fixtures.
+- Decisions: D-011 updated (allowlist narrowed, user-approved).
+- Git state: `main`, HEAD `65d3b0f`, Phase 03 uncommitted.
+- Handoff path: `progress/handoffs/phase-03-llm-patches.md` (updated)
+
+### 2026-10-11 — Phase 03 — PASS
+- Scope: gate closure, confirmed by the user, plus the local checkpoint commit.
+- Changes: `STATUS.md` and the handoff mark Phase 03 as PASS. No code changes since the security-check fixes.
+- Commands run (all exit 0), re-run on the final tree before marking PASS: `npm run format:check`, `lint`, `typecheck`, `test` (19 files, 567 passed), `test:db` (18 passed), `build`, `eval:impact` (baseline unchanged). `test:ollama` (4 passed) and `eval:llm` (run 7) were last run after the security-check fixes, with no code change since.
+- Acceptance criteria: all Phase 03 exit criteria met locally on fixtures with a local Ollama. Persistence, the runner and live doc fetching are out of scope (D-010). GitHub Actions CI NOT RUN (no remote).
+- Blockers/limitations: deferred items (security L4, I2, I5; review L4-L6; total time budget per PR) are listed in the handoff.
+- Decisions: none new (D-011 as updated).
+- Git state: `main`; Phase 03 committed locally on top of `65d3b0f`; not pushed.
+- Handoff path: `progress/handoffs/phase-03-llm-patches.md`
