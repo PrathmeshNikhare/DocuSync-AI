@@ -60,3 +60,11 @@ Record material decisions. Do not use this file as a daily diary.
 - Decision: The webhook records a `queued` analysis (one per repository, PR and head commit) and returns. `ingestPullRequest` is a pure service, used today through `npm run ingest` (fixture or live). The ingestion snapshot is not persisted. How queued analyses get processed (an in-process runner, a worker, or similar) is decided when a later phase first consumes the snapshot.
 - Alternatives: Running ingestion inline after the response with Next's `after()` (simple, but no retries and fragile on serverless hosts); adding a job queue now (infrastructure without a measured need).
 - Consequences: In Phase 01, queued analyses stay `queued`. The demo path is the webhook check plus a separate `npm run ingest`. A future runner must move analyses through the states that the CHECK constraints allow.
+
+## D-010 — Rule-based deterministic impact engine; live analysis deferred
+- Status: Accepted (user-approved 2026-10-10)
+- Date: 2026-10-10
+- Context: Phase 02 needs explainable candidate selection with a measurable baseline before any model is involved (D-005, docs/05).
+- Decision: The impact engine is a pure function from a `PullRequestSnapshot` plus doc files to candidates. It uses regex signal extraction, whole-word and link matching, and fixed integer rule points with thresholds (config in `src/lib/impact-engine/config.ts`). The candidate schema gains `rankPoints` (documented as not a probability) and `rules`, and evidence gains an optional `side` (`base`/`head`). Phase 02 is limited to the engine, labelled fixtures, the evaluation harness and a fixture CLI. Fetching docs from GitHub (Contents: read), persisting results and processing queued analyses stay deferred.
+- Alternatives: An AST parser (more precise, but a new dependency and per-language work); embeddings for doc retrieval (ruled out by D-005 until evaluation shows a need); including live doc fetching or a runner now (larger scope, and it revisits D-009).
+- Consequences: The baseline is cheap and reproducible but blind to behaviour-only changes and noisy on generic names. Rule changes must be followed by `npm run eval:impact`, and the committed report is checked by a test. The live path (Contents permission, doc fetching at the head SHA, a runner) must be planned explicitly in a later phase.

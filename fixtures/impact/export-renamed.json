@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "export-renamed",
+  "category": "import_export",
+  "description": "The exported function sum is renamed to add; the usage guide shows sum().",
+  "files": [
+    {
+      "filename": "src/lib/math.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,3 +1,3 @@\n-export function sum(a: number, b: number): number {\n+export function add(a: number, b: number): number {\n   return a + b;\n }"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/usage.md": "# Usage\n\n```ts\nimport { sum } from \"example/math\";\nsum(1, 2); // 3\n```\n"
+  },
+  "labels": {
+    "affected": ["docs/usage.md"]
+  }
+}

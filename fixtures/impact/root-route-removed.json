@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v2",
+  "id": "root-route-removed",
+  "category": "no_impact",
+  "description": "The home handler moves from / to /home; the links doc only contains an external URL, which mentions no route of this app.",
+  "files": [
+    {
+      "filename": "src/server.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -3,2 +3,2 @@\n const app = express();\n-app.get(\"/\", home);\n+app.get(\"/home\", home);"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n",
+    "docs/links.md": "# Links\n\nProject docs live at https://example.com/docs.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

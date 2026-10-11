@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "linked-file-renamed",
+  "category": "path_change",
+  "description": "src/cli.ts moves to src/bin/cli.ts; the architecture doc links to the old path.",
+  "files": [
+    {
+      "filename": "src/bin/cli.ts",
+      "status": "renamed",
+      "additions": 0,
+      "deletions": 0,
+      "previous_filename": "src/cli.ts"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/architecture.md": "# Architecture\n\nThe [CLI entry point](../src/cli.ts) parses arguments and calls the service.\n"
+  },
+  "labels": {
+    "affected": ["docs/architecture.md"]
+  }
+}

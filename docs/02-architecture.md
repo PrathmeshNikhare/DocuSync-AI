@@ -61,4 +61,10 @@ Keep these concepts independently testable:
 - `src/lib/diff-analyzer/normalize.ts` validates every file path and parses hunks. Unsafe files are rejected by index. Oversized, binary or malformed patches keep the file but drop the hunks (`patchState`). That includes patch text Postgres can't store and hunk numbers outside the safe-integer range, both marked `malformed`. The result is a `PullRequestSnapshot` (Zod) and is not persisted.
 - `src/lib/db/migrate.ts` and `scripts/migrate.ts` form the migration runner (D-007). `migrations/0001_ingestion.sql` creates `repositories`, `pull_requests` and `analyses`.
 - `src/lib/log.ts`: structured JSON logs with a closed set of fields.
-- Not created yet: `impact-engine/`, `llm/`, `patch-validator/`, `review/` and `security/`.
+- Not created yet: `llm/`, `patch-validator/`, `review/` and `security/`.
+
+## Implemented so far (Phase 02)
+
+- `src/lib/impact-engine/`: the deterministic impact engine (`analyzeImpact`), its rule config, and the evaluation harness. It is pure TypeScript with no framework, database, GitHub or model imports (tested). Details in docs/05.
+- `npm run analyze -- --fixture <scenario>` runs the engine on a labelled fixture, and `npm run eval:impact` writes `docs/evaluation/impact-baseline.md`.
+- Still not connected end to end (D-009, D-010): nothing fetches documentation from GitHub, results are not persisted, and queued analyses are not processed.

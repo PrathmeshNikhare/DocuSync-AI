@@ -96,3 +96,69 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
 - Decisions: none new.
 - Git state: `main`; Phase 01 committed locally on top of `2f60dcc`; not pushed.
 - Handoff path: `progress/handoffs/phase-01-github-diff-ingestion.md`
+
+### 2026-10-10 — Phase 02 — IN PROGRESS (local checks PASS)
+- Scope: deterministic impact engine, labelled fixtures, evaluation harness and fixture CLI (user-approved scope: engine and fixtures only; live doc fetching, persistence and a runner deferred, D-010).
+- Changes: `src/lib/impact-engine/` (config, signals, match, engine, evaluate, plus tests); schema additions (evidence `side`; candidate `rankPoints` and `rules`; `docFileSchema`); 13 labelled scenarios in `fixtures/impact/`; `scripts/eval-impact.ts` and `scripts/analyze.ts`; `docs/evaluation/impact-baseline.md`; docs 02, 05 and 08, README, D-010.
+- Commands run (all exit 0): Phase 01 gate re-check; `npm run format:check`, `lint`, `typecheck`, `test` (312 passed), `build`, `test:db` (18 passed), `eval:impact`, `analyze -- --fixture linked-file-renamed`. Also three mutation checks, each caught (one only after adding a pinning test).
+- Test results: 312 unit and 18 database tests passed. Baseline on `impact-v1`: TP 9, FP 1, FN 1, TN 15 (precision 90.0%, recall 90.0% on these 26 docs only).
+- Blockers/limitations: synthetic dataset by the engine's author; regex extraction; not connected to live repositories. Labels written before the engine; one evidence-only matching bug fixed after the first run, with no metric change and no weight tuning.
+- Decisions: D-010.
+- Git state: `main`, HEAD `55989bf`, Phase 02 uncommitted.
+- Handoff path: `progress/handoffs/phase-02-impact-engine.md`
+
+### 2026-10-11 — Phase 02 — IN PROGRESS (review fixes applied)
+- Scope: the user-selected `/review` fixes: M1-M6, L1-L5 and the nits.
+- Process: 8 `impact-v2` regression scenarios were labelled first and run on the unfixed engine (TP 2, FP 6, FN 1, TN 5). Then the fixes were applied. Only one fixture was corrected before recording: a missing context-space prefix that made a patch parse as malformed; no label changed.
+- Changes:
+  - **M1:** bounded, surrogate-safe clipping of every message and excerpt.
+  - **M2:** PR-level notes for truncated and rejected files.
+  - **M3:** docs the PR edits count as mentioning a new var or script.
+  - **M4:** config keys only from app config files; `package.json` classified by block, with a value heuristic when the header is out of view.
+  - **M5:** docs split and tokenized once, matchers compiled once per signal with token pre-checks, a 300-signal cap with a note, and a linear Markdown-link regex.
+  - **M6:** docs edited in place emit no path signal.
+  - **L1:** block state resets per hunk.
+  - **L2:** root route not matchable; dynamic segments match across notations; routes don't match inside external URLs.
+  - **L3:** cap only when the analyzed evidence is below the likely threshold.
+  - **L4:** hits sorted by points before the caps.
+  - **L5:** the scenario schema rejects labelling PR-edited docs.
+  - **Nits:** cap rule first, `.json` filter in tests, `escapeRegExp` escapes `-`, and docs/05 says `unlikely_affected` needs a custom config.
+  - Engine version bumped to `deterministic-0.2.0`; docs 05 and 08 updated.
+- Commands run (all exit 0 unless noted): `npm run format:check`, `lint`, `typecheck`, `test` (341 passed), `build`, `eval:impact`. `test:db` first failed with `ECONNREFUSED` (Docker Desktop had stopped), then passed (18) after `docker desktop start` and `docker compose up`. Also six mutation checks (all caught) and a re-run of the reviewer probes.
+- Test results: 341 unit and 18 database tests passed. Baseline on `deterministic-0.2.0`: `impact-v1` TP 9, FP 1, FN 1, TN 15 (unchanged); `impact-v2` TP 3, FP 0, FN 0, TN 11.
+- Blockers/limitations: v2 scenarios target the fixed findings; the package.json heuristic can misclassify; work is bounded but has no time budget.
+- Decisions: none new (D-010 stands).
+- Git state: `main`, HEAD `55989bf`, Phase 02 uncommitted.
+- Handoff path: `progress/handoffs/phase-02-impact-engine.md` (updated)
+
+### 2026-10-11 — Phase 02 — IN PROGRESS (security-check fixes applied)
+- Scope: the user-selected `/security-check` fixes: H1, H2, M1, M2, L1-L5 and the inaccurate doc claims.
+- Changes:
+  - **H1:** unambiguous dynamic-route pattern.
+  - **H2:** `package.json` line patterns run on trimmed text with no ambiguous trailing quantifiers.
+  - **M1:** 200-character name cap; 200-name context caps; related docs computed once per kind; per-doc link index; 10,000,000-character doc budget and 20,000,000-line scan budget, each with notes.
+  - **M2:** separate README fallback rule with honest wording; `likely_affected` requires doc-side evidence (`no_doc_evidence_cap`).
+  - **L1:** removed lines of renamed files point at the old path.
+  - **L2:** renames, deletions and removals are matched first under the signal cap.
+  - **L3:** duplicate doc paths are rejected.
+  - **L4:** excerpts are a window around the match on long lines.
+  - **L5:** names and paths in engine-written text are reduced to plain characters.
+  - **Docs:** docs/05 rewritten for accuracy, a docs/07 Phase 02 section added, a docs/08 version row, the report wording ("written", not "committed"), and the handoff baseline and scenario counts corrected.
+  - Engine version `deterministic-0.3.0`. The 2026-10-10 Phase 02 entry above says "13 labelled scenarios"; that was accurate then, and there are now 21.
+  - Two literal invisible characters a quoting layer had put into `engine.test.ts` were replaced with `\u` escapes; all sources were scanned and are clean.
+- Commands run: `npm run format:check`, `lint`, `typecheck`, `test` (353 passed), `build`, `eval:impact` (no metric change), all exit 0. `test:db` failed with `ECONNREFUSED` (Docker Desktop had stopped), then passed (18) after restarting it. Also eight mutation checks, all caught (H1 and H2 reverted made the suite hang until a 120 s timeout), and a re-run of the security probes.
+- Test results: 353 unit and 18 database tests passed. Baseline unchanged: TP 12, FP 1, FN 1, TN 26.
+- Blockers/limitations: no wall-clock timeout or memory limit yet (runner phase); snapshot and config inputs are not validated by the engine (runner phase).
+- Decisions: none new (D-010 stands).
+- Git state: `main`, HEAD `55989bf`, Phase 02 uncommitted.
+- Handoff path: `progress/handoffs/phase-02-impact-engine.md` (updated)
+
+### 2026-10-11 — Phase 02 — PASS
+- Scope: gate closure, confirmed by the user, plus the local checkpoint commit.
+- Changes: `STATUS.md` and the handoff mark Phase 02 as PASS. No code changes since the security-check fixes.
+- Commands run (all exit 0), re-run on the final working tree before marking PASS: `npm run format:check`, `lint`, `typecheck`, `test` (16 files, 353 passed), `test:db` (18 passed), `build`, `eval:impact` (21 scenarios: TP 12, FP 1, FN 1, TN 26; report unchanged, checked by test).
+- Acceptance criteria: all Phase 02 exit criteria met locally on labelled fixtures. Live doc fetching, persistence and the runner are out of scope (D-010). GitHub Actions CI NOT RUN (no remote).
+- Blockers/limitations: deferred items (worker-thread timeout and memory limit; snapshot and config validation by the runner) are listed in the handoff.
+- Decisions: none new.
+- Git state: `main`; Phase 02 committed locally on top of `55989bf`; not pushed.
+- Handoff path: `progress/handoffs/phase-02-impact-engine.md`

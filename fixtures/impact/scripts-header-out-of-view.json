@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v2",
+  "id": "scripts-header-out-of-view",
+  "category": "package_script",
+  "description": "start:prod is renamed to start:production deep inside a long scripts block, so the hunk does not show the \"scripts\" header; the README tells operators to run npm run start:prod.",
+  "files": [
+    {
+      "filename": "package.json",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -12,3 +12,3 @@\n     \"dev\": \"next dev\",\n-    \"start:prod\": \"next start -p 80\",\n+    \"start:production\": \"next start -p 80\",\n     \"lint\": \"eslint\""
+    }
+  ],
+  "docs": {
+    "README.md": "# Demo\n\nRun `npm run start:prod` in production.\n",
+    "docs/architecture.md": "# Architecture\n\nA single Next.js app.\n"
+  },
+  "labels": {
+    "affected": ["README.md"]
+  }
+}

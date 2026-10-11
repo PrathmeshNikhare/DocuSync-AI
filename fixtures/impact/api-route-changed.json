@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "api-route-changed",
+  "category": "api_route",
+  "description": "The POST handler of /api/users now requires an email field; the API doc describes the endpoint.",
+  "files": [
+    {
+      "filename": "src/app/api/users/route.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -4,4 +4,4 @@\n export async function POST(request: Request) {\n   const body = await request.json();\n-  return createUser({ name: body.name });\n+  return createUser({ name: body.name, email: body.email });\n }"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/api.md": "# API\n\n## POST /api/users\n\nCreates a user. Body: `{ \"name\": string }`.\n"
+  },
+  "labels": {
+    "affected": ["docs/api.md"]
+  }
+}

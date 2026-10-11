@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v2",
+  "id": "dynamic-route-changed",
+  "category": "api_route",
+  "description": "The handler for /api/users/[id] changes its response; the API doc documents GET /api/users/{id}.",
+  "files": [
+    {
+      "filename": "src/app/api/users/[id]/route.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -2,3 +2,3 @@\n export async function GET(_req: Request, ctx: Ctx) {\n-  return Response.json(await getUser(ctx.id));\n+  return Response.json(await getUserWithTeams(ctx.id));\n }"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n",
+    "docs/api.md": "# API\n\n## GET /api/users/{id}\n\nReturns one user.\n"
+  },
+  "labels": {
+    "affected": ["docs/api.md"]
+  }
+}

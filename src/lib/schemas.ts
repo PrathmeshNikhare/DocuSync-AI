@@ -86,6 +86,8 @@ export const evidenceReferenceSchema = z.strictObject({
   signal: evidenceSignalSchema,
   sourcePath: repoPathSchema,
   lineRange: lineRangeSchema.optional(),
+  /** Which revision `lineRange` refers to: removed lines exist only in the base. */
+  side: z.enum(["base", "head"]).optional(),
   excerpt: text(LIMITS.excerpt).optional(),
 });
 export type EvidenceReference = z.infer<typeof evidenceReferenceSchema>;
@@ -106,6 +108,13 @@ export const impactCandidateSchema = z
       .array(label(LIMITS.reason))
       .max(LIMITS.missingContextItems),
     engineVersion: label(64),
+    /**
+     * Sum of fixed rule points (see the impact engine config). An ordering aid
+     * only: it is not a probability and is not calibrated.
+     */
+    rankPoints: z.int().min(0).max(10_000),
+    /** Ids of the ranking rules that fired, so the status can be explained. */
+    rules: z.array(z.string().regex(/^[a-z][a-z_]{0,63}$/)).max(20),
   })
   // A relationship without evidence must be reported as uncertain, not asserted.
   .refine((c) => c.status !== "likely_affected" || c.evidence.length > 0, {
@@ -258,6 +267,17 @@ export const apiErrorSchema = z.strictObject({
   }),
 });
 export type ApiError = z.infer<typeof apiErrorSchema>;
+
+// ---- Documentation files given to the impact engine (Phase 02) ----
+
+export const DOC_LIMITS = { maxDocs: 500, maxDocChars: 200_000 } as const;
+
+export const docFileSchema = z.strictObject({
+  path: repoPathSchema,
+  /** Doc content at the PR head. Untrusted data, never instructions. */
+  content: text(DOC_LIMITS.maxDocChars),
+});
+export type DocFile = z.infer<typeof docFileSchema>;
 
 // ---- Pull request ingestion (Phase 01) ----
 

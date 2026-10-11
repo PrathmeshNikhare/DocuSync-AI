@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v2",
+  "id": "package-json-multi-hunk",
+  "category": "package_script",
+  "description": "The build:docs script is renamed to docs:build (first hunk) and typescript is bumped further down in devDependencies (second hunk, block header out of view). The README must change; the contributing guide only mentions typescript in passing.",
+  "files": [
+    {
+      "filename": "package.json",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 2,
+      "patch": "@@ -5,4 +5,4 @@\n   \"scripts\": {\n     \"dev\": \"next dev\",\n-    \"build:docs\": \"typedoc\",\n+    \"docs:build\": \"typedoc\",\n     \"test\": \"vitest run\"\n@@ -30,3 +30,3 @@\n     \"eslint\": \"^9\",\n-    \"typescript\": \"^5.8.0\",\n+    \"typescript\": \"^5.9.0\",\n     \"vitest\": \"^5\""
+    }
+  ],
+  "docs": {
+    "README.md": "# Demo\n\nBuild the API docs with `npm run build:docs`.\n",
+    "docs/contributing.md": "# Contributing\n\nInstall typescript and run the linter.\n"
+  },
+  "labels": {
+    "affected": ["README.md"]
+  }
+}

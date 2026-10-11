@@ -1,0 +1,23 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "docs-only",
+  "category": "no_impact",
+  "description": "Only the guide changes; no other documentation is affected.",
+  "files": [
+    {
+      "filename": "docs/guide.md",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,2 +1,2 @@\n # Guide\n-Run the tests with npm test.\n+Run the tests with `npm test`."
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/guide.md": "# Guide\nRun the tests with `npm test`.\n",
+    "docs/architecture.md": "# Architecture\n\nThe service is a single Next.js app.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

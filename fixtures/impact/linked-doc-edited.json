@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v2",
+  "id": "linked-doc-edited",
+  "category": "no_impact",
+  "description": "A typo is fixed in the guide; the README links to the guide but needs no change.",
+  "files": [
+    {
+      "filename": "docs/guide.md",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,2 +1,2 @@\n # Guide\n-Teh guide.\n+The guide."
+    }
+  ],
+  "docs": {
+    "README.md": "# Demo\n\nSee the [guide](docs/guide.md).\n",
+    "docs/guide.md": "# Guide\nThe guide.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

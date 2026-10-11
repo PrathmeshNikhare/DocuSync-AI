@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "internal-refactor",
+  "category": "no_impact",
+  "description": "A private helper inside the cache module is simplified; no exported name, path, route or setting changes.",
+  "files": [
+    {
+      "filename": "src/lib/internal/cache.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 2,
+      "patch": "@@ -10,4 +10,3 @@\n function evictOldest(map: Map<string, Entry>) {\n-  const keys = Array.from(map.keys());\n-  map.delete(keys[0]!);\n+  map.delete(map.keys().next().value!);\n }"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/architecture.md": "# Architecture\n\nResponses are kept in an in-memory caching layer for 60 seconds.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

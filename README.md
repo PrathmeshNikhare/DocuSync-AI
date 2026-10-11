@@ -44,6 +44,15 @@ npm run ingest -- --fixture env-var-change   # prints the normalized snapshot as
 
 The fixtures in `fixtures/github/` are synthetic. Live mode (`npm run ingest -- --live owner/repo#123 --installation <id>`) needs a GitHub App; see `docs/10-deployment-and-operations.md`.
 
+### Impact analysis on labelled fixtures (Phase 02)
+
+```bash
+npm run analyze -- --fixture env-var-renamed   # candidate docs with evidence, as JSON
+npm run eval:impact                            # regenerates docs/evaluation/impact-baseline.md
+```
+
+The engine is deterministic and does not run on live repositories yet. The baseline numbers describe the synthetic fixtures only.
+
 ### Sending a test webhook locally
 
 With `GITHUB_ALLOWED_INSTALLATION_IDS=987654` (the fixture's installation), sign `fixtures/webhooks/pull_request.opened.json` with your `GITHUB_WEBHOOK_SECRET` (HMAC-SHA256 of the exact file bytes), and POST it to `/api/webhooks/github` with the headers `x-github-event: pull_request`, `x-github-delivery: <uuid>` and `x-hub-signature-256: sha256=<hex>`. The first delivery returns 202 `queued`; sending it again returns 200 `duplicate`.

@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "script-renamed",
+  "category": "package_script",
+  "description": "The npm script lint:fix is renamed to fix; the README tells contributors to run npm run lint:fix.",
+  "files": [
+    {
+      "filename": "package.json",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -5,4 +5,4 @@\n   \"scripts\": {\n     \"dev\": \"next dev\",\n-    \"lint:fix\": \"eslint --fix .\",\n+    \"fix\": \"eslint --fix .\",\n     \"test\": \"vitest run\""
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\n## Contributing\n\nBefore committing, run `npm run lint:fix`.\n",
+    "docs/architecture.md": "# Architecture\n\nThe service is a single Next.js app.\n"
+  },
+  "labels": {
+    "affected": ["README.md"]
+  }
+}

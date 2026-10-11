@@ -1,0 +1,29 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "env-var-added-undocumented",
+  "category": "env_var",
+  "description": "A new NEW_FLAG variable is read and added to .env.example, but no doc mentions it; the configuration doc lists the other variables.",
+  "files": [
+    {
+      "filename": "src/config.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "patch": "@@ -1,3 +1,4 @@\n export const config = {\n   port: Number(process.env.PORT ?? 3000),\n+  newFlag: process.env.NEW_FLAG === \"true\",\n };"
+    },
+    {
+      "filename": ".env.example",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "patch": "@@ -1,1 +1,2 @@\n PORT=3000\n+NEW_FLAG=false"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/configuration.md": "# Configuration\n\nSet these in `.env`:\n\n- `PORT`: HTTP port (default 3000)\n"
+  },
+  "labels": {
+    "affected": ["docs/configuration.md"]
+  }
+}

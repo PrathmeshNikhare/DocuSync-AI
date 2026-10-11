@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "env-var-renamed",
+  "category": "env_var",
+  "description": "API_TOKEN is renamed to API_KEY in the config loader; the configuration doc still documents API_TOKEN.",
+  "files": [
+    {
+      "filename": "src/config.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,4 +1,4 @@\n export const config = {\n   port: Number(process.env.PORT ?? 3000),\n-  apiToken: process.env.API_TOKEN,\n+  apiKey: process.env.API_KEY,\n };"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/configuration.md": "# Configuration\n\n| Variable | Purpose |\n|---|---|\n| `PORT` | HTTP port (default 3000) |\n| `API_TOKEN` | Token for the upstream API |\n"
+  },
+  "labels": {
+    "affected": ["docs/configuration.md"]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "false-negative-behaviour",
+  "category": "known_false_negative",
+  "description": "A private rate-limit constant drops from 100 to 10 requests per minute; the API doc states 100, but no name, path or key in the diff appears in the doc.",
+  "files": [
+    {
+      "filename": "src/lib/rate-limit.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,4 +1,4 @@\n-const LIMIT_PER_MINUTE = 100;\n+const LIMIT_PER_MINUTE = 10;\n export function allow(count: number) {\n   return count < LIMIT_PER_MINUTE;\n }"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/api.md": "# API\n\nRequests are rate limited to 100 per minute per client.\n"
+  },
+  "labels": {
+    "affected": ["docs/api.md"]
+  }
+}

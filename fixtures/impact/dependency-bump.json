@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v2",
+  "id": "dependency-bump",
+  "category": "no_impact",
+  "description": "A release bumps the package version and the zod dependency; the install doc mentions the Node version and zod in passing and needs no change.",
+  "files": [
+    {
+      "filename": "package.json",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 2,
+      "patch": "@@ -1,4 +1,4 @@\n {\n   \"name\": \"example\",\n-  \"version\": \"1.0.0\",\n+  \"version\": \"1.1.0\",\n   \"private\": true,\n@@ -20,4 +20,4 @@\n   \"dependencies\": {\n     \"next\": \"16.4.0\",\n-    \"zod\": \"^4.6.0\"\n+    \"zod\": \"^4.6.5\"\n   },"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n",
+    "docs/install.md": "# Install\n\nCheck your Node version first.\nValidation uses zod.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v2",
+  "id": "workflow-yaml-changed",
+  "category": "no_impact",
+  "description": "The CI workflow switches from npm ci to npm install; the developer doc says to run the tests and is unaffected.",
+  "files": [
+    {
+      "filename": ".github/workflows/ci.yml",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -18,3 +18,3 @@\n       - name: Install\n-        run: npm ci\n+        run: npm install --no-audit\n       - name: Test"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n",
+    "docs/dev.md": "# Development\n\nThen run the tests with `npm test`.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

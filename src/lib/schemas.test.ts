@@ -45,6 +45,8 @@ const candidate = {
   evidence: [evidence],
   missingContext: [],
   engineVersion: "0.1.0",
+  rankPoints: 8,
+  rules: ["env_var_added"],
 } as const;
 
 const proposal = {

@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v1",
+  "id": "false-positive-generic-word",
+  "category": "known_false_positive",
+  "description": "An exported object named config changes an internal value; the contributing guide uses the word config about git, which is unrelated.",
+  "files": [
+    {
+      "filename": "src/lib/settings.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,1 +1,1 @@\n-export const config = { retries: 3 };\n+export const config = { retries: 5 };"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/contributing.md": "# Contributing\n\nSet your name with git config before committing.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

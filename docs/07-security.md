@@ -34,6 +34,30 @@ GitHub credentials, repository source and documentation, user identity, review d
 13. Keep Ollama/internal endpoints private; restrict outbound network access where practical.
 14. Add security tests for each control before enabling write operations.
 
+## Implemented controls (Phase 02)
+
+The impact engine (`src/lib/impact-engine/`) is a pure function that nothing calls yet (D-010). When it is wired to real PRs, a PR author controls both the diff and, through the PR, the docs. These controls are in place and tested:
+- **Untrusted text, regex safety (control 7):**
+  - Every pattern applied to diff or doc text avoids super-linear backtracking.
+  - Regression tests use hostile inputs: a 200,000-character Markdown-link line, a 30-segment dynamic route, and 64,000-space `package.json` lines.
+  - Two exploitable patterns were found by the security check and fixed. The route matcher was exponential: 8.8 s at 16 segments, now 2 ms. The JSON key/value matcher was cubic: 70 s at 8,000 characters, now under 1 ms.
+- **Work budgets (control 7):**
+  - Signal names are capped at 200 characters, and context hints at 200 names per kind.
+  - At most 300 signals are matched (removals and renames first), 10,000,000 doc characters indexed, and 20,000,000 doc lines scanned.
+  - Each cap adds a `missingContext` note, so partial analysis is never silent.
+  - **Not yet:** a wall-clock timeout or memory limit (runner phase: worker thread with `resourceLimits`).
+- **No fabricated relationships (CLAUDE.md invariant):**
+  - `likely_affected` requires a quoted line from the doc itself.
+  - The README fallback is worded as a suggestion, not as a mention.
+  - Evidence for removed lines in renamed files points at the old path.
+  - Duplicate doc paths are rejected, so evidence line numbers are unambiguous.
+- **Evidence integrity:** every evidence excerpt is tested against the exact fixture line it cites. Excerpts are quoted byte-exact, including any bidi or zero-width characters an attacker put in a doc.
+- **Untrusted text in engine-written fields:** names and paths in `reason` and notes are reduced to a plain character set, so they can't break formatting or hide bidi or zero-width tricks. Quoted excerpts are not rewritten; the Phase 04 review UI must make invisible characters in them visible.
+- **No probabilities:** `rankPoints` is documented and reported as rule points, never as a probability or confidence.
+- **Not yet in place:**
+  - `resolveDocLink` results are compared only against validated changed paths. They must never be used to choose a patch target without `repoPathSchema` plus the Phase 03 allowlist.
+  - The engine does not validate its snapshot or config inputs; callers must.
+
 ## Implemented controls (Phase 01)
 
 These add to the Phase 00 list below.
