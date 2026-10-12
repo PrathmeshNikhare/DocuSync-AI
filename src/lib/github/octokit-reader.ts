@@ -6,10 +6,16 @@ import {
   rawPullFileSchema,
   type GitHubErrorCode,
   type GitHubReader,
+  type GitHubTreeReader,
 } from "./reader";
 
 /** Installation tokens are requested with these permissions only. */
 export const READ_ONLY_PERMISSIONS = { pull_requests: "read" } as const;
+/** The live CLI path also reads documentation at the PR head. */
+export const LIVE_READ_PERMISSIONS = {
+  pull_requests: "read",
+  contents: "read",
+} as const;
 export const REQUEST_TIMEOUT_MS = 10_000;
 
 // Octokit's request-log plugin would print method, repository path and status on
@@ -21,6 +27,11 @@ export interface OctokitReaderOptions {
   appId: string;
   privateKey: string;
   installationId: number;
+  /**
+   * For the live CLI path: the token also gets `contents: read`, scoped to this
+   * one repository of the installation.
+   */
+  repositoryName?: string;
   /** Injected in tests; defaults to global fetch. */
   fetch?: typeof fetch;
   timeoutMs?: number;
@@ -28,6 +39,9 @@ export interface OctokitReaderOptions {
 
 export function mapGitHubError(err: unknown): GitHubReadError {
   if (err instanceof GitHubReadError) return err;
+  // A guard inside fetch throws our own code; Octokit wraps it as a status-500 cause.
+  const cause = (err as { cause?: unknown })?.cause;
+  if (cause instanceof GitHubReadError) return cause;
   const e = err as {
     name?: string;
     status?: number;
@@ -91,7 +105,9 @@ export function addRequestGuards(
  * exchange done by @octokit/auth-app, on a separate client that never touches
  * repository endpoints.
  */
-export function createOctokitReader(opts: OctokitReaderOptions): GitHubReader {
+export function createOctokitReader(
+  opts: OctokitReaderOptions,
+): GitHubReader & GitHubTreeReader {
   const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const requestOptions = opts.fetch ? { fetch: opts.fetch } : {};
   const tokenClient = new Octokit({ request: requestOptions, log: SILENT_LOG });
@@ -108,7 +124,12 @@ export function createOctokitReader(opts: OctokitReaderOptions): GitHubReader {
     (client ??= auth({
       type: "installation",
       installationId: opts.installationId,
-      permissions: READ_ONLY_PERMISSIONS,
+      ...(opts.repositoryName
+        ? {
+            permissions: LIVE_READ_PERMISSIONS,
+            repositoryNames: [opts.repositoryName],
+          }
+        : { permissions: READ_ONLY_PERMISSIONS }),
     })
       .then(({ token }) => {
         const octokit = new Octokit({
@@ -133,6 +154,35 @@ export function createOctokitReader(opts: OctokitReaderOptions): GitHubReader {
           owner: ref.owner,
           repo: ref.repo,
           pull_number: ref.number,
+        });
+        return data;
+      } catch (err) {
+        throw mapGitHubError(err);
+      }
+    },
+
+    async getTree(ref, sha) {
+      try {
+        const octokit = await getClient();
+        const { data } = await octokit.rest.git.getTree({
+          owner: ref.owner,
+          repo: ref.repo,
+          tree_sha: sha,
+          recursive: "1",
+        });
+        return data;
+      } catch (err) {
+        throw mapGitHubError(err);
+      }
+    },
+
+    async getBlob(ref, sha) {
+      try {
+        const octokit = await getClient();
+        const { data } = await octokit.rest.git.getBlob({
+          owner: ref.owner,
+          repo: ref.repo,
+          file_sha: sha,
         });
         return data;
       } catch (err) {

@@ -1,6 +1,7 @@
 import "server-only";
 import type { Pool } from "pg";
 import { z } from "zod";
+import { writesEnabled } from "@/lib/env";
 import {
   evidenceReferenceSchema,
   impactStatusSchema,
@@ -321,8 +322,18 @@ export interface ReviewView {
     headSha: string;
     baseSha: string;
     title: string | null;
+    /** Recorded by live analyses only; a GitHub write needs it. */
+    headRef: string | null;
   };
   decision: DecisionView | null;
+  /** The documentation PR for this decision, once one was requested (docs/13). */
+  output: {
+    step: "pending" | "branch_created" | "committed" | "pr_opened";
+    errorCode: string | null;
+    prNumber: number | null;
+    prUrl: string | null;
+  } | null;
+  writesEnabled: boolean;
 }
 
 export async function getReview(
@@ -366,6 +377,11 @@ export async function getReview(
     d_base_blob_sha: string | null;
     username: string | null;
     display_name: string | null;
+    head_ref: string | null;
+    out_step: string | null;
+    out_error: string | null;
+    pr_number: number | null;
+    pr_url: string | null;
   }>(
     `SELECT pp.id, pp.target_path, pp.head_sha, pp.base_blob_sha, pp.base_content, pp.patch_text,
             pp.rationale, pp.evidence, pp.validation_status, pp.validation_issues, pp.model,
@@ -374,7 +390,8 @@ export async function getReview(
             p.github_pr_number, p.head_sha AS pr_head_sha, p.base_sha, a.pr_title,
             d.decision, d.edited_patch, d.decided_at, d.patch_sha256,
             d.head_sha AS d_head_sha, d.base_blob_sha AS d_base_blob_sha,
-            rv.username, rv.display_name
+            rv.username, rv.display_name, p.head_ref,
+            go.step AS out_step, go.error_code AS out_error, go.pr_number, go.pr_url
        FROM patch_proposals pp
        JOIN impact_candidates c ON c.id = pp.candidate_id
        JOIN analyses a ON a.id = c.analysis_id
@@ -383,11 +400,19 @@ export async function getReview(
        JOIN repository_reviewers rr ON rr.repository_id = r.id AND rr.reviewer_id = $1
        LEFT JOIN review_decisions d ON d.proposal_id = pp.id
        LEFT JOIN reviewers rv ON rv.id = d.reviewer_id
+       LEFT JOIN github_outputs go ON go.decision_id = d.id
       WHERE pp.id = $2`,
     [reviewerId, proposalId],
   );
   const r = rows[0];
   if (!r) return undefined;
+  const prUrl = z
+    .string()
+    .regex(
+      /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+$/,
+    )
+    .nullable()
+    .parse(r.pr_url);
   return {
     proposal: {
       id: r.id,
@@ -419,6 +444,7 @@ export async function getReview(
       headSha: r.pr_head_sha,
       baseSha: r.base_sha,
       title: r.pr_title,
+      headRef: r.head_ref,
     },
     decision:
       r.decision && r.decided_at && r.patch_sha256 && r.username
@@ -437,5 +463,16 @@ export async function getReview(
             baseBlobSha: r.d_base_blob_sha ?? r.base_blob_sha,
           }
         : null,
+    output: r.out_step
+      ? {
+          step: z
+            .enum(["pending", "branch_created", "committed", "pr_opened"])
+            .parse(r.out_step),
+          errorCode: r.out_error,
+          prNumber: r.pr_number,
+          prUrl,
+        }
+      : null,
+    writesEnabled: writesEnabled(),
   };
 }

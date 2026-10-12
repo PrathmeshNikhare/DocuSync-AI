@@ -34,6 +34,73 @@ GitHub credentials, repository source and documentation, user identity, review d
 13. Keep Ollama/internal endpoints private; restrict outbound network access where practical.
 14. Add security tests for each control before enabling write operations.
 
+## Implemented controls (Phase 05)
+
+The approval-gated GitHub write path (docs/13, D-013). Verified against a fetch-level fake of GitHub and the test database only: **no live GitHub App was available**, so nothing has written to real GitHub.
+- **Writes off by default:** `GITHUB_WRITES_ENABLED` must be exactly `true`. It is checked first in `POST /api/reviews/:id/create-pr` (503 `WRITES_DISABLED` before the session is looked at), again in the publish flow, and inside the writer before it mints a token and before every mutating request (all tested).
+- **Control 3 (least privilege):**
+  - The writer mints a new installation token per operation (a new `createAppAuth`, so no cache), asking for `contents: write` and `pull_requests: write` for exactly one repository id. The token response must show exactly that scope (GitHub's implicit `metadata: read` allowed), or the operation stops with `GITHUB_TOKEN_SCOPE`. The token is revoked (`DELETE /installation/token`) in a `finally` on every path. The revocation uses its own timeout, so it still runs after the operation's 45 s deadline has fired (fixed after `/review` M1; tested, including the deadline case).
+  - The live CLI reader asks for `pull_requests: read` and `contents: read`, scoped to the one repository named on the command line.
+  - **Two-layer request guard** (`src/lib/github/writer.ts`), both tested on their own:
+    - the Octokit hook allows only exact (method, route template) pairs with exact parameters and body keys;
+    - a wrapping `fetch` re-checks host, method, decoded path, query and body on the real request.
+  - Refused before anything is sent:
+    - merges and deletes, GraphQL, literal URLs, other repositories, paths, branches, trees or blobs;
+    - a `PUT` without `branch`, a near-miss branch name, a `committer` key, a branch at another commit;
+    - a PR into another base, with `maintainer_can_modify: true`, or converting an issue;
+    - `baseUrl`, header and `fetch` overrides.
+  - Redirects are never followed (`GITHUB_REDIRECT`). The token client may call only the token endpoint for the binding's installation, repository and permissions (tested: other endpoints, installations, permissions, an unscoped token and repository writes are refused before sending). The writer has no merge, delete or generic request method (tested on its method list).
+- **Controls 9 and 10 (binding and re-checks):** every attempt re-checks, in order:
+  - session, grant (ungranted ids are 404), decision state;
+  - the deciding reviewer still enabled and granted (`DECISION_REVOKED`);
+  - the echoed `headSha` and `patchSha256`, then the decision against its proposal chain;
+  - the patch hash, then `validatePatch`;
+  - fixture source, installation allowlist and recorded branch names, then the attempt limits.
+  - Then on GitHub:
+    - the PR is open, in the same repository by id, not from a fork or a deleted fork;
+    - its head SHA and both branch names are unchanged;
+    - the target's tree entry, walked one directory at a time, is a regular file with the reviewed blob id.
+  - The blob's bytes must hash to that id and equal the stored base text exactly (security design H1). A forged stored base is already refused by `validatePatch`, which compares the stored text's hash with the blob id (`PATCH_INVALID`, tested). The text-equality clause is defence in depth. The file written is the approved patch applied to that text, through a `PUT` conditioned on the base blob SHA.
+  - Each check has a refusal test with zero GitHub requests or no document write.
+- **Control 11 (idempotency):**
+  - `github_outputs` has one row per decision. A random-token lease (60 s) guards each attempt, and the operation has a 45 s deadline. Progress writes need the live lease (`LEASE_LOST` otherwise). Steps are persisted and resumed.
+  - Tested:
+    - sequential and concurrent duplicates give one PR;
+    - a repeated request returns the stored URL without calling GitHub;
+    - a timed-out commit, a lost commit response, a failed PR creation and a lost PR response each resume without duplicates.
+  - A lost commit is adopted only if `compare` shows exactly one commit on the reviewed head that changes only the target to the expected blob. Only the App bot's own PR is adopted. An extra commit or a foreign PR on the branch gives `BRANCH_CONFLICT`.
+  - **Only our commit in the PR (security-check M-1, fixed):**
+    - DocuSync's commit must have exactly the reviewed head as its parent (the `PUT` is conditioned on the file's blob, not the branch tip).
+    - Before creating the PR, the branch tip must be that commit and `compare` must show exactly our change.
+    - The created PR's head must be that commit (`PR_HEAD_MISMATCH` otherwise, never recorded).
+    - The PR body names the commit.
+    - All tested, including pushes just before the commit and just before the PR is created.
+    - **Residual:** commits pushed after the PR opens are stopped only by the `docusync/**` ruleset, which docs/10 now requires before writes are enabled; the code can't verify it.
+  - At most 5 attempts, 30 s apart.
+- **Trust in the app database role (accepted, D-013):** whoever holds `DATABASE_URL` can insert sessions, proposals and decisions, and so can make the App open a bounded docs PR in an allowlisted installation's repository. Signed decisions are not built. Migration 0005 limits the damage:
+  - repository identity (`github_repo_id`, `source`) can't be updated by the app role;
+  - output bindings are fixed after insert;
+  - the attempt log is append-only.
+  - All of this is tested with permission-denied errors.
+- **PR content:**
+  - Every value from the PR, the model or an operator is rendered only inside code spans or fenced blocks sized past its longest backtick run.
+  - Links are server-built github.com autolinks.
+  - The rationale must also pass `proseIssues`.
+  - Titles and commit messages neutralize `@` and `#`.
+  - Reviewers appear by display name, never username.
+  - The body is capped at 60,000 characters in whole blocks.
+  - Tested with hostile paths, names, branch refs and rationales.
+- **Logging:** `api_create_pr` logs the request id, reviewer id, output id, outcome and code only. A failed token revocation logs `github_token_revoke` with a code. Tokens, keys, patch text, file content and GitHub messages are never logged or returned (tested).
+- **Follow-ups closed from the Phase 04 security check:** writes now refuse fixture data and compare the binding with GitHub. The binding snapshots the GitHub repository and installation ids on `github_outputs`. Page loaders and Server Actions log codes only. Operator commands exist for revoke, disable and enable; passwords go to a new file, not stdout. Sessions are pruned and capped at 10 per reviewer.
+- **Not yet:**
+  - No live GitHub run.
+  - No reset-password command and no narrower operator role.
+  - No signed decisions.
+  - Decisions don't expire.
+  - The PR file list is not pinned to a commit (the A→B→A gap).
+  - The CSP still allows inline scripts while a write action exists (D-012).
+  - GitHub rulesets and a separate write App are recommended in docs/10 but are deployment choices.
+
 ## Implemented controls (Phase 04)
 
 The review UI and API (`src/lib/review/`, `src/app/`, `src/components/`; D-012). Accounts are local reviewer accounts, not GitHub identities.
@@ -65,15 +132,14 @@ The review UI and API (`src/lib/review/`, `src/app/`, `src/components/`; D-012).
 - **Not yet:**
   - No multi-factor authentication.
   - No per-IP rate limit in the app: it must come from an upstream proxy before `/login` is exposed to untrusted networks (security M-A).
-  - **Phase 05 requirements from the security check (Info 1-5):**
+  - **Phase 05 requirements from the security check (Info 1-5), now addressed in Phase 05 except where noted there:**
     - **Writes:** before any GitHub write, refuse fixture-sourced repositories; compare the binding against GitHub's current head and the blob at that head (the stored `base_blob_sha` is the hash of stored text); recompute and compare `patch_sha256`; re-check the reviewer's grant; and require a fresh approval. Decisions don't expire and are accepted on superseded heads today.
     - **Binding:** add the GitHub repository and installation id to it.
     - **Logging:** wrap page loaders and Server Actions so errors log only codes. Next's default error logging there is unverified.
     - **Operator tooling:** add disable, reset-password and revoke-grant commands and a narrower operator role than the owner; stop printing the generated password to stdout.
     - **Housekeeping:** prune expired sessions and cap sessions per reviewer.
   - No session rotation or "sign out everywhere".
-  - Reviewers are not GitHub identities, so Phase 05 must authorize GitHub writes separately.
-  - The approval binding is recorded but not yet compared against GitHub (Phase 05).
+  - Reviewers are not GitHub identities, so GitHub writes are authorized separately (Phase 05).
   - The base blob SHA is the hash of the stored text (security L4 from Phase 03).
   - A cross-site sign-in attempt gets Next.js's 500, not a 403.
   - **Status codes:** pages answer HTTP 200 for a missing or ungranted id (the not-found page is streamed) and for a signed-out visitor (a streamed redirect to `/login`), because those checks run inside `<Suspense>` after the shell is sent. No data is shown in either case (accepted, `/review` L4).
@@ -173,4 +239,4 @@ Phase 00 covers only these. Everything else in the list above is still to be bui
 
 ## Incident response basics
 
-Document how to revoke GitHub App credentials, rotate webhook secrets, disable write operations, inspect audit events and restore a known-good deployment.
+Document how to revoke GitHub App credentials, rotate webhook secrets, disable write operations, inspect audit events and restore a known-good deployment. The write-path procedure (stop writes, suspend the installation, rotate the key, lock reviewers, clean up branches and PRs, review `github_outputs` and `github_output_attempts`) is in docs/13 "Incident response".

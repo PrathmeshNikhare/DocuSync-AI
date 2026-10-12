@@ -94,3 +94,19 @@ Record material decisions. Do not use this file as a daily diary.
   - **CSP:** turning Cache Components off for a nonce CSP; experimental SRI.
   - **Tests:** Playwright.
 - Consequences: The review flow is real and testable end to end with fixture data. Reviewers are not GitHub identities, so Phase 05 must authorize GitHub writes separately and compare the recorded binding (head SHA, blob SHA, patch hash) against GitHub before writing. The script CSP relies on never rendering untrusted HTML. Login rate limiting is per username only.
+
+## D-013 — Approval-gated GitHub writes: stacked docs PR, echoed approval, bounded trust in the app role
+- Status: Accepted (user-approved 2026-10-12; security design review approved 2026-10-12 after its required changes were applied in docs/13)
+- Date: 2026-10-12
+- Context: Phase 05 adds the first GitHub writes. Reviewers are local accounts (D-012), so GitHub can't attribute approvals to them. Until now, analyses came only from fixtures (D-012) and no runner exists (D-009, D-010).
+- Decision:
+  - **Live analyses:** a CLI path `analysis:run -- --live`, which fetches docs through git trees and blobs at the head SHA, so blob ids are GitHub's own.
+  - **Writes off by default:** they need `GITHUB_WRITES_ENABLED=true`, enforced in the route and again inside the writer.
+  - **Approval:** an explicit create-PR action echoes the decision's `headSha` and `patchSha256`. Any granted reviewer may press it. Every attempt is recorded, and the deciding reviewer must still be enabled and granted.
+  - **Write-time re-checks:** every check is re-run at write time. The written file is the approved patch applied to the blob fetched from GitHub, which must match both `base_blob_sha` and the stored base text.
+  - **Output:** one branch `docusync/pr-<n>-<id>`, one commit, and one PR whose base is the source PR's head branch, with `maintainer_can_modify: false`; never merged. Idempotent through `github_outputs` (one row per decision, a lease owned by a token, resumable steps).
+  - **GitHub access:** one App for reading and writing. Writer tokens are minted per operation, scoped to one repository id, checked and then revoked. A two-layer allowlist guard runs on exact routes and parameters, with no redirects.
+  - **Trust in the app database role:** accepted within bounds. A compromise allows bounded docs PRs only. Repository identity can't be updated by the app role, the binding snapshots `github_repo_id` and `installation_id`, and each decision is checked against its proposal chain.
+  - **PR bodies:** reviewers appear by display name; untrusted text is rendered only in code spans or blocks.
+- Alternatives: signed decisions or HMAC-keyed sessions (a secret outside the database; more work); a separate write App; a docs PR against the default branch; a background runner; writes on accept without a separate action.
+- Consequences: no write without a fresh, explicit, server-recorded approval matching GitHub's current state. A stolen App private key is limited only by GitHub-side controls, so docs/10 recommends rulesets and optionally a separate write App. Writes are verified against mocks only until a live App is available.

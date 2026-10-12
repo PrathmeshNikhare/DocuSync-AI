@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CreatePrPanel, type CreatePrProps } from "./create-pr-panel";
 import { DecisionPanel } from "./decision-panel";
 import { LoginForm } from "./login-form";
 
@@ -174,5 +175,118 @@ describe("LoginForm", () => {
     expect(action).toHaveBeenCalledOnce();
     const form = (action.mock.calls[0] as unknown as [unknown, FormData])[1];
     expect(form.get("username")).toBe("alice");
+  });
+});
+
+describe("CreatePrPanel", () => {
+  const props: CreatePrProps = {
+    proposalId: "p1",
+    repository: { owner: "acme", name: "widgets" },
+    prNumber: 5,
+    headRef: "feature/x\u202e",
+    headSha: "a".repeat(40),
+    targetPath: "docs/a.md",
+    baseBlobSha: "b".repeat(40),
+    baseContent: "old\n",
+    approvedPatch: PATCH,
+    patchSha256: "c".repeat(64),
+    lastError: null,
+  };
+
+  it("confirms with exactly what will be written, then echoes the approval's hashes", async () => {
+    fetchMock.mockReturnValue(
+      respond(201, {
+        pullRequest: {
+          number: 9,
+          url: "https://github.com/acme/widgets/pull/9",
+          created: true,
+        },
+      }),
+    );
+    render(<CreatePrPanel {...props} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create documentation PR…" }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    const confirm = screen.getByRole("button", { name: "Create pull request" });
+    expect(document.activeElement).toBe(confirm);
+    expect(screen.getByText("c".repeat(64))).toBeTruthy();
+    // The approved diff itself, and a hidden character in the branch name made visible.
+    expect(
+      screen.getByRole("table", { name: /original document on the left/i }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("hidden character U+202E")).toBeTruthy();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/reviews/p1/create-pr");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({
+      headSha: "a".repeat(40),
+      patchSha256: "c".repeat(64),
+    });
+    const link = screen.getByRole("link", { name: /pull request #9/ });
+    expect(link.getAttribute("href")).toBe(
+      "https://github.com/acme/widgets/pull/9",
+    );
+    expect(link.getAttribute("rel")).toContain("noreferrer");
+  });
+
+  it("shows the server's code and message on failure, and never links a non-GitHub URL", async () => {
+    fetchMock.mockReturnValueOnce(
+      respond(409, {
+        error: {
+          code: "STALE_HEAD",
+          message: "The source pull request has new commits; review again",
+          requestId: "r",
+        },
+      }),
+    );
+    render(<CreatePrPanel {...props} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create documentation PR…" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create pull request" }),
+    );
+    expect(await screen.findByText(/new commits/)).toBeTruthy();
+    expect(screen.getByText("STALE_HEAD")).toBeTruthy();
+    expect(refresh).not.toHaveBeenCalled();
+
+    cleanup();
+    fetchMock.mockReturnValueOnce(
+      respond(201, {
+        pullRequest: {
+          number: 9,
+          url: "https://evil.example/pull/9",
+          created: true,
+        },
+      }),
+    );
+    render(<CreatePrPanel {...props} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create documentation PR…" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create pull request" }),
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("Escape cancels and returns focus without a request", () => {
+    render(<CreatePrPanel {...props} />);
+    const open = screen.getByRole("button", {
+      name: "Create documentation PR…",
+    });
+    fireEvent.click(open);
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Create pull request" }),
+      { key: "Escape" },
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Create documentation PR…" }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

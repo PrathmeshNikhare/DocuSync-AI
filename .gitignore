@@ -18,3 +18,6 @@ next-env.d.ts
 *.pfx
 .envrc
 .npmrc
+
+# generated reviewer passwords (npm run reviewer:add --password-file)
+*.pw

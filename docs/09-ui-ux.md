@@ -45,4 +45,12 @@ The primary review path should be understandable without reading project documen
   - alerts and status messages announced;
   - removed and added diff lines named for screen readers.
 - **Layout:** works at narrow widths, with wide tables scrolling sideways. Light and dark follow the system setting. There are no animations, so reduced-motion preferences are respected by default.
-- **Not yet:** the completion state shows no PR URL, because there is no GitHub write yet (Phase 05).
+- **Documentation PR (Phase 05):**
+  - After an accept or edit on a live analysis, the decision section shows **Create documentation PR…** when writes are enabled.
+  - It opens a confirmation, with focus moved to it and Escape to cancel. The confirmation shows:
+    - the repository, source PR and head branch (hidden characters marked);
+    - the head commit, file, document blob and approved patch hash;
+    - the approved diff itself.
+  - Confirming sends the head commit and patch hash back.
+  - Success shows a link to the PR, only if it is a github.com pull request URL, opened with `noopener noreferrer`. Failures show the server's message and code.
+  - Fixture data, disabled writes and analyses without branch names each get an explanation instead of the button. A created PR is shown as a link on every later visit.

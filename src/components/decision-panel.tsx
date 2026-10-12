@@ -28,7 +28,7 @@ const ERROR_TEXT: Record<string, string> = {
 
 const CONSEQUENCE: Record<Choice, string> = {
   accepted:
-    "Accepting records your approval of this exact patch for this revision. Nothing is written to GitHub: opening the documentation pull request is a separate step, which is not available yet.",
+    "Accepting records your approval of this exact patch for this revision. Nothing is written to GitHub: opening the documentation pull request is a separate, explicit step.",
   rejected: "Rejecting records that this patch should not be used.",
 };
 

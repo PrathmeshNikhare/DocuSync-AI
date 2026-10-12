@@ -292,3 +292,69 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
 - Decisions: none new (D-012).
 - Git state: `main`; Phase 04 committed locally on top of `f9f19a3`; not pushed.
 - Handoff path: `progress/handoffs/phase-04-review-ui.md`
+
+### 2026-10-12 — Phase 05 — IN PROGRESS (implementation complete, gates pending)
+- Scope: the approval-gated GitHub write workflow (docs/13, D-013), the live CLI analysis path, and the Phase 04 follow-ups chosen by the user (operator commands, code-only error logging, session housekeeping, no password on stdout).
+- **Design gate:** the security reviewer reviewed docs/13 before any write code existed. The verdict was approve with required changes (H1, M1–M6, L1–L4). The changes were applied, and the user chose: accept the bounded app-DB-role trust; display names in PR bodies; one App. A re-review approved, with two wording fixes applied (column-level grants, refs backfill) plus its low items.
+- Changes:
+  - **Migration 0005:**
+    - `pull_requests.head_ref` and `base_ref`;
+    - `github_outputs` (binding, step, lease) and `github_output_attempts`;
+    - repository identity and output bindings fixed for the app role.
+  - **Writer:** `src/lib/github/writer.ts` (per-operation scoped token, two guard layers, no merge).
+  - **Live path:** `docs.ts` and `doc-bytes.ts`; reader `contents: read` scoped by repository name; `livePullSchema`; `saveAnalysis` in `store.ts`; `analysis:run --live`.
+  - **Publish:** `publish.ts` (write-time re-checks, H1 blob check, leases, resumable steps, adoption rules), `pr-content.ts`.
+  - **Route and UI:** `POST /api/reviews/[id]/create-pr`, `CreatePrPanel` and the review view states.
+  - **Env:** `GITHUB_WRITES_ENABLED` (off by default) and `GITHUB_APP_SLUG`; log fields `outputId`, `reviewerId`, `step`.
+  - **Phase 04 follow-ups:** `reviewer:revoke`, `reviewer:disable`, `reviewer:enable`, `sessions:prune`; `--password-file` (with `*.pw` git-ignored); a cap of 10 sessions per reviewer; `codeOnlyErrors` around page loaders and Server Actions.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (704), `test:db` (94), `build`, `eval:impact` (baseline unchanged), `npm audit --omit=dev` (0), `db:migrate` (0005 applied to dev). Also the operator-command smoke test on the dev database, 20 mutation checks (all caught; one first missed and fixed with a new test), and a production-mode end-to-end run of the create-PR route (6 checks PASS).
+- Not run: any live GitHub App or GitHub write; `/review`; `/security-check`; GitHub CI (no remote).
+- Decisions: D-013.
+- Git state: `main`, HEAD `e37fd24`, Phase 05 uncommitted.
+- Handoff path: `progress/handoffs/phase-05-github-workflow.md`
+
+### 2026-10-12 — Phase 05 — IN PROGRESS (`/review` fixes applied)
+- Scope: the user-selected `/review` fixes M1–M4, L1, L2, L4, L5 and L10.
+- Changes:
+  - **Writer:** the token revocation has its own timeout; `guardedTokenClient` is exported; a refused token request becomes `GITHUB_TOKEN_REFUSED`.
+  - **Publish:**
+    - an opened PR is returned first;
+    - configuration and stored data are validated before the claim;
+    - the attempt log is inside the guarded block;
+    - the branch is confirmed before it is recorded;
+    - the retarget check uses the output snapshot;
+    - unusable post-write responses become `GITHUB_AMBIGUOUS`, and a refused create becomes `PR_CREATE_REFUSED`;
+    - the retryable list is extended;
+    - `created` reflects adoption.
+  - **Store:** branch names are refreshed when they differ.
+  - **Route and API:** `503 WRITES_MISCONFIGURED`; distinct terminal and retryable 502 messages.
+  - **Fake GitHub:** honours aborted signals and can return a chosen body.
+  - **Docs:** 03, 04, 07, 08 and 13.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (715), `test:db` (105), `build`, `eval:impact` (unchanged), `npm audit --omit=dev` (0); 27 mutation checks (all caught); the production-mode end-to-end run of the create-PR route (7 checks PASS).
+- Not run: `/security-check` (the first attempt stopped on an API session limit before reporting); live GitHub; GitHub CI (no remote).
+- Git state: `main`, HEAD `e37fd24`, Phase 05 uncommitted.
+- Handoff path: `progress/handoffs/phase-05-github-workflow.md` (updated)
+
+### 2026-10-12 — Phase 05 — IN PROGRESS (`/security-check` done, M-1 fixed)
+- Scope: `/security-check` (read-only, not an audit), and the user-selected fix for M-1.
+- Result: no High. M-1: the bot-authored PR could carry commits pushed by someone with push access.
+- Changes:
+  - **Publish:** the commit's parent must be the reviewed head; `compare` runs before PR creation (shared `isOurCommit`); the created PR's head must be our commit (`PR_HEAD_MISMATCH`).
+  - **PR body:** names the commit.
+  - **API:** a message for `PR_HEAD_MISMATCH`.
+  - **Fake GitHub:** commit parents in the `PUT` response, and a "before" fault for push races.
+  - **Docs:** 04, 07, 08, 10 (rulesets now required before enabling writes) and 13.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (715), `test:db` (109), `build`, `eval:impact` (unchanged), `npm audit --omit=dev` (0). 3 new mutation checks were caught; the publish mutation set was re-run after the refactor.
+- Open: L-1 to L-3 and the Info items (handoff).
+- Git state: `main`, HEAD `e37fd24`, Phase 05 uncommitted.
+- Handoff path: `progress/handoffs/phase-05-github-workflow.md` (updated)
+
+### 2026-10-12 — Phase 05 — PASS
+- Scope: gate closure, confirmed by the user, plus the local checkpoint commit.
+- Changes: `STATUS.md`, the handoff and docs/13's status mark Phase 05 as PASS. No product code changes since the security-check M-1 fix.
+- Commands run on the final tree before the commit (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (715), `test:db` (109), `build`. The publish and fix mutation sets (17) were re-run after the M-1 refactor, all caught.
+- Acceptance criteria: all Phase 05 exit criteria met locally against a fake GitHub. A live GitHub App run is NOT RUN (no App); GitHub Actions CI NOT RUN (no remote).
+- Open: security-check L-1 to L-3, `/review` L3 and L6–L9, and the Info items (in the handoff).
+- Decisions: D-013.
+- Git state: `main`; Phase 05 committed locally on top of `e37fd24`; not pushed.
+- Handoff path: `progress/handoffs/phase-05-github-workflow.md`

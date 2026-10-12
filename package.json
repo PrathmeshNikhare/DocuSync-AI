@@ -24,6 +24,10 @@
     "reviewer:add": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/reviewer.ts add",
     "reviewer:grant": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/reviewer.ts grant",
     "reviewer:unlock": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/reviewer.ts unlock",
+    "reviewer:revoke": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/reviewer.ts revoke",
+    "reviewer:disable": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/reviewer.ts disable",
+    "reviewer:enable": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/reviewer.ts enable",
+    "sessions:prune": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/reviewer.ts prune-sessions",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

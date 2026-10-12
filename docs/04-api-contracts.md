@@ -79,11 +79,28 @@ All three endpoints authenticate with the session cookie and answer with `cache-
 
 Sign-in and sign-out are Server Actions on `/login` and in the review layout, not JSON endpoints. Next.js refuses a Server Action whose `Origin` doesn't match the host; it answers 500 in that case.
 
-### `POST /api/reviews/:id/create-pr`
-- Later phase only.
-- Require fresh explicit approval, repository write authorization and source revision check.
-- Use narrow GitHub permissions and idempotency.
-- Never merge automatically.
+### `POST /api/reviews/:id/create-pr` (implemented in Phase 05)
+- The only route that writes to GitHub (docs/13). Body: exactly `{ headSha, patchSha256 }` (at most 1 KiB), echoing the approval the reviewer confirmed. Same-origin, session and grant checks as for decisions; `cache-control: no-store`.
+- Never merges. Creates at most one branch, one commit and one PR per decision.
+
+| Case | Status | Code |
+|---|---|---|
+| PR created | 201 | body `{pullRequest: {number, url, created: true}}` |
+| PR already created for this decision (no GitHub call) | 200 | same body, `created: false` |
+| `GITHUB_WRITES_ENABLED` is not `true` (checked before the session) | 503 | `WRITES_DISABLED` |
+| Writes enabled but the App id or key, `GITHUB_APP_SLUG` or the installation allowlist is invalid (no attempt is used) | 503 | `WRITES_MISCONFIGURED` |
+| Cross-site request / no session | 403 / 401 | `FORBIDDEN_ORIGIN` / `UNAUTHENTICATED` |
+| Not JSON, over 1 KiB, wrong shape | 415, 413, 400 | `UNSUPPORTED_MEDIA_TYPE`, `PAYLOAD_TOO_LARGE`, `INVALID_JSON` / `VALIDATION_ERROR` |
+| Unknown id or no grant | 404 | `NOT_FOUND` |
+| Approval problems | 409 | `NOT_DECIDED`, `PROPOSAL_REJECTED`, `DECISION_REVOKED`, `APPROVAL_MISMATCH`, `APPROVAL_TAMPERED`, `PATCH_INVALID` |
+| Not writable | 409 | `FIXTURE_NOT_WRITABLE`, `INSTALLATION_NOT_ALLOWED`, `ANALYSIS_TOO_OLD` |
+| GitHub state changed | 409 | `PR_NOT_OPEN`, `REPOSITORY_MISMATCH`, `FORK_NOT_SUPPORTED`, `STALE_HEAD`, `PR_RETARGETED`, `STALE_BLOB`, `TREE_TRUNCATED`, `BRANCH_CONFLICT`, `PR_CREATE_REFUSED`, `PR_HEAD_MISMATCH` (a PR was opened but its branch moved; close it) |
+| Another attempt holds the lease | 409 | `IN_PROGRESS` |
+| Retried within 30 s / more than 5 attempts | 429 | `RETRY_TOO_SOON` / `ATTEMPT_LIMIT` |
+| GitHub failed, timed out or answered ambiguously, the token was refused or wrongly scoped, a redirect (all retryable), or a terminal GitHub code such as a guard refusal or invalid response | 502 | the `GITHUB_*` or `LEASE_LOST` code; the message says whether to try again |
+| Unexpected failure | 500 | `INTERNAL_ERROR` |
+
+Non-retryable codes are stored on the output row, and later requests get the same code without calling GitHub; they need a new analysis and review. A decision whose PR was already opened always answers 200 with that PR, even if its approver was disabled since.
 
 ## Shared contract rules
 

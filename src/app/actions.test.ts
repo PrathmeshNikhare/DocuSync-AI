@@ -6,6 +6,10 @@ vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`REDIRECT ${to}`);
   },
+  // Like Next's: its own control-flow errors pass through codeOnlyErrors.
+  unstable_rethrow: (err: unknown) => {
+    if (err instanceof Error && err.message.startsWith("REDIRECT")) throw err;
+  },
 }));
 vi.mock("@/lib/db/pool", () => ({ getPool: () => ({}) }));
 const login = vi.fn();
@@ -79,6 +83,23 @@ describe("auth log events", () => {
     ]);
     expect(lines.every((l) => typeof l.requestId === "string")).toBe(true);
     expect(JSON.stringify(lines)).not.toMatch(/alice|hunter2/);
+    logs.mockRestore();
+  });
+});
+
+describe("unexpected errors", () => {
+  it("are logged as a code only and replaced by a generic error", async () => {
+    const logs = vi.spyOn(console, "log").mockImplementation(() => {});
+    login.mockRejectedValue(
+      new Error("connect ECONNREFUSED db.internal user=docusync_app"),
+    );
+    await expect(loginAction({}, form("alice", "pw"))).rejects.toThrow(
+      /^INTERNAL_ERROR$/,
+    );
+    const line = logs.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(line).toContain('"name":"action_login"');
+    expect(line).toContain('"code":"INTERNAL_ERROR"');
+    expect(line).not.toContain("ECONNREFUSED");
     logs.mockRestore();
   });
 });

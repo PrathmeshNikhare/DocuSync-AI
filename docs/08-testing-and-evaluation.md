@@ -155,3 +155,117 @@ All runs used `llama3.2:3b` via Ollama 0.40.3 on the development machine (temper
   - the full review flow passed;
   - cache headers on pages and the API, HSTS, and the `__Host-` cookie with `Secure` were verified.
 - **Counts:** `npm test` 634, `npm run test:db` 49.
+
+## Phase 05 tests (implemented)
+
+GitHub is mocked at the `fetch` level by `src/test/fake-github.ts`: an in-memory repository with commits, trees, blobs, branches and PRs, GitHub's status codes for the cases the write path depends on (404 refs, 409 conditional writes, 422 existing branch or PR), and fault injection (a status, a timeout, a redirect, or a request that takes effect while its response is lost). The real writer, both guard layers, the real token minting through `@octokit/auth-app` (a test RSA key) and the test database run against it. **No live GitHub App was used.**
+- **Writer (`src/lib/github/writer.test.ts`, 36 tests):**
+  - writes disabled, at open and after the token was minted;
+  - a fresh token per operation, revoked;
+  - four token-scope mismatches;
+  - 409/422 mapping;
+  - the tree walk and truncation;
+  - redirects;
+  - 22 guarded requests refused with zero requests sent;
+  - the fetch layer and the hook layer each tested on their own;
+  - no token or GitHub message in logs.
+- **PR content (`pr-content.test.ts`, 11 tests):**
+  - code spans and fenced blocks round-trip hostile values under CommonMark's rules;
+  - after removing code, the body has no interpreted links, HTML, mentions or references except the source PR;
+  - autolinks are github.com only;
+  - a failing rationale is withheld;
+  - the display name is shown, never the username;
+  - the cap uses whole blocks;
+  - title and commit message are neutralized.
+- **Publish (`publish.db.test.ts`, 44 tests):**
+  - **Happy path:** one branch at the head, one commit with exactly the approved content, a PR into the source head branch with `maintainer_can_modify: false`, the token revoked, the attempt recorded.
+  - **Duplicates:** a repeated request makes no GitHub call; concurrent requests make one PR.
+  - **15 refusals with no GitHub request and no output row:**
+    - writes disabled;
+    - no decision, rejected, requester without grant;
+    - decider disabled or ungranted;
+    - echo mismatches, extra body fields;
+    - tampered hash, chain mismatch;
+    - forged stored base, invalid patch;
+    - installation not allowed, no branch names;
+    - plus fixture data.
+  - **13 changed GitHub states, each refused without writing the document and not retried:**
+    - closed, moved head, retargeted;
+    - fork, deleted fork, repository id;
+    - changed blob, symlink, non-tree directory;
+    - truncated tree;
+    - blob bytes not hashing to the id, BOM bytes;
+    - 409 on the PUT.
+  - **Resume:** timed-out commit, lost commit response (adopted after `compare`), failed and lost PR creation.
+  - **Branch tampering:** extra commit, a lost commit that changes another file, a PR by someone else.
+  - **Leases and limits:** lease lost, lease held by another attempt, the attempt limit.
+  - **Grants:** migration 0005 denies app-role updates to repository identity and output bindings, and deletes. The webhook-style update still works.
+  - **Refs backfill:** branch names filled on a webhook-created PR row.
+- **Live docs (`src/lib/github/docs.test.ts`, 8 tests):**
+  - allowed paths only, read at the head;
+  - symlinks and submodules refused without fetching;
+  - BOM, NUL and invalid UTF-8;
+  - blob id mismatch;
+  - truncated tree and oversized docs;
+  - malformed tree.
+- **Route (`api-create-pr.test.ts`, 10 tests):**
+  - 503 before the session is read;
+  - cross-site, unauthenticated, oversized and malformed bodies never reach publishing;
+  - code-to-status mapping with ids logged;
+  - 201 and 200;
+  - a coded 500 that hides the error.
+- **UI:**
+  - `CreatePrPanel`: the confirmation shows hashes, the diff and marked hidden characters, then sends exactly the echo; errors show code and message; a non-GitHub URL is never linked; Escape cancels.
+  - `ReviewView`: the button appears only for accepted or edited live data with writes enabled and branch names; fixture, disabled, no-refs, rejected and already-opened states are explained.
+- **Phase 04 follow-ups:**
+  - **Session cap:** the 11th sign-in revokes the oldest (DB).
+  - **Code-only errors:** an unexpected error in the sign-in action logs only `INTERNAL_ERROR`.
+  - **Operator commands:** smoke-tested on the dev database.
+- **Mutation checks:** 20, all caught, covering:
+  - the writer: writes flag, hook allowlist, fetch-layer host, redirect refusal, token scope;
+  - publish: decider standing, echo, chain, H1 blob check, stale head, adoption limits, bot-only adoption, the progress lease, the claim lease, token revocation;
+  - the route's flag check, code-span fence length, symlink refusal, the UI's link check;
+  - the migration 0005 repository revoke (test schema reset before and after).
+  - The claim-lease mutation was first missed, because the retry interval also blocked the duplicate. A test where only the lease blocks was added.
+- **Production-mode end to end (`npm run build` + `next start`):**
+  - writes off gives 503 `WRITES_DISABLED` with `no-store`;
+  - the review page shows the fixture explanation and no button;
+  - writes on gives 409 `FIXTURE_NOT_WRITABLE` for fixture data, 403 cross-site and 401 without a session;
+  - no output rows were created.
+- **Counts:** `npm test` 704, `npm run test:db` 94.
+
+### Phase 05 `/review` fixes
+
+- **M1 (token revocation after the deadline):**
+  - the fake GitHub now rejects requests whose signal is already aborted, as `fetch` does;
+  - a test fires the operation's deadline and still sees the token revoked.
+- **M2 (retargeted PR):** a PR retargeted without a new commit can be analysed and decided again, and then published. The first decision keeps `PR_RETARGETED`, and the branch names on the PR row are refreshed.
+- **M3 (failure classification):**
+  - **Unusable responses:** an unusable `PUT` or PR-create response is `GITHUB_AMBIGUOUS` and is retried. The retry adopts the commit through `compare`, or the bot's PR. The fake can now return a body of the test's choosing after a request takes effect.
+  - **Token and PR refusals:** a refused token request is `GITHUB_TOKEN_REFUSED` and succeeds on retry. A refused PR creation is `PR_CREATE_REFUSED` and is not retried.
+  - **API message:** the route tells retryable and terminal 502s apart.
+- **M4 (claims without tests):**
+  - **Token client:** 5 tests where it refuses another endpoint, another installation, more permissions, an unscoped token and a repository write before sending.
+  - **Method list:** a test pins the writer's methods (no merge, delete or generic request).
+  - **H1 wording:** corrected in docs/13 and docs/07. A forged stored base is `PATCH_INVALID` via `validatePatch`'s hash check. GitHub bytes that don't hash to the id are `APPROVAL_TAMPERED`. The text-equality clause is defence in depth. The earlier "H1 blob check" mutation was caught through the hash clause.
+- **L1:** an unexpected error after the claim releases the lease and records `INTERNAL_ERROR` (retryable); the attempt-log insert now sits inside the guarded block.
+- **L2:** a branch that couldn't be created is not recorded as `branch_created`.
+- **L4:** an opened PR is returned even after its approver was disabled. An adopted PR reports `created: false`.
+- **L5:** a missing App slug fails before any attempt or token. The route answers `503 WRITES_MISCONFIGURED` without publishing or logging the setting.
+- **L10:**
+  - the route's 415;
+  - a terminal code reported ahead of the attempt limit;
+  - a deleted docs branch after the commit gives `BRANCH_CONFLICT`;
+  - plus the M1–M3 tests above.
+- **Mutation checks for the fixes:** 7, all caught: revocation without the deadline, ref refresh, `GITHUB_AMBIGUOUS` and `GITHUB_TOKEN_REFUSED` retryable, `PR_CREATE_REFUSED`, branch confirmation, opened PR first.
+- **Counts:** `npm test` 715, `npm run test:db` 105.
+
+### Phase 05 `/security-check` fix (M-1)
+
+- **Push races** (the fake GitHub can now run a push just before a request):
+  - a push just before our commit makes GitHub commit on top of it, which is refused (`BRANCH_CONFLICT`) and not recorded;
+  - a push just before PR creation gives `PR_HEAD_MISMATCH`, not recorded, terminal.
+- **Recorded commit:** a recorded commit that isn't exactly ours fails the `compare` check before any PR.
+- **PR body:** names DocuSync's commit.
+- **Mutation checks:** 3, all caught (parent check, compare before the PR, created PR head).
+- **Counts:** `npm run test:db` 109.

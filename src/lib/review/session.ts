@@ -13,6 +13,8 @@ export const LOGIN_LIMIT = { failures: 5, windowMinutes: 15 } as const;
  * attempts beyond this are refused at once rather than queued.
  */
 export const MAX_CONCURRENT_LOGINS = 4;
+/** Live sessions kept per reviewer; a new sign-in revokes the oldest beyond this. */
+export const MAX_SESSIONS_PER_REVIEWER = 10;
 let activeLogins = 0;
 
 export const usernameSchema = z.string().regex(/^[a-z0-9][a-z0-9_.-]{1,38}$/);
@@ -86,6 +88,14 @@ async function checkLogin(
     `INSERT INTO sessions (token_hash, reviewer_id, expires_at)
      VALUES ($1, $2, now() + make_interval(hours => $3))`,
     [hashToken(token), row.id, SESSION_TTL_HOURS],
+  );
+  // At most MAX_SESSIONS_PER_REVIEWER live sessions: signing in revokes the oldest.
+  await pool.query(
+    `UPDATE sessions SET revoked_at = now() WHERE token_hash IN (
+       SELECT token_hash FROM sessions
+        WHERE reviewer_id = $1 AND revoked_at IS NULL AND expires_at > now()
+        ORDER BY created_at DESC, token_hash OFFSET $2)`,
+    [row.id, MAX_SESSIONS_PER_REVIEWER],
   );
   return {
     ok: true,

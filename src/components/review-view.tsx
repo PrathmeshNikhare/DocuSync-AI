@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReviewView as Review } from "@/lib/review/queries";
+import { CreatePrPanel, PullRequestLink } from "./create-pr-panel";
 import { DecisionPanel } from "./decision-panel";
 import { EvidenceList, ModelAssessment } from "./evidence";
 import { SideBySideDiff } from "./side-by-side-diff";
@@ -20,7 +21,7 @@ const DECISION_LABEL = {
 } as const;
 
 export function ReviewView({ review }: { review: Review }) {
-  const { proposal, candidate, repository, pr, decision } = review;
+  const { proposal, candidate, repository, pr, decision, output } = review;
   return (
     <div className="space-y-8">
       <header className="space-y-2">
@@ -155,7 +156,11 @@ export function ReviewView({ review }: { review: Review }) {
             <p className="mt-1">
               {decision.decision === "rejected"
                 ? "This patch will not be used."
-                : "No GitHub pull request has been created. Opening the documentation pull request is a separate, explicit step that is not available yet."}
+                : output?.step === "pr_opened" &&
+                    output.prUrl &&
+                    output.prNumber
+                  ? "A documentation pull request was created for this decision."
+                  : "No GitHub pull request has been created. Opening the documentation pull request is a separate, explicit step."}
             </p>
           </Notice>
           <h3 className="font-medium">Audit trail</h3>
@@ -230,6 +235,41 @@ export function ReviewView({ review }: { review: Review }) {
               />
             </>
           )}
+          {decision.decision !== "rejected" &&
+            (output?.step === "pr_opened" && output.prUrl && output.prNumber ? (
+              <Notice tone="success" title="Documentation pull request">
+                <PullRequestLink url={output.prUrl} number={output.prNumber} />.
+                Review it on GitHub; it is never merged automatically.
+              </Notice>
+            ) : repository.source === "fixture" ? (
+              <Notice tone="info" title="No pull request for fixture data">
+                Fixture analyses are never written to GitHub.
+              </Notice>
+            ) : !review.writesEnabled ? (
+              <Notice tone="info" title="GitHub writes are turned off">
+                This server can&apos;t create pull requests. An operator must
+                enable GitHub writes first.
+              </Notice>
+            ) : !pr.headRef ? (
+              <Notice tone="warning" title="This analysis can't be published">
+                It has no branch names recorded. Run a live analysis of the pull
+                request again.
+              </Notice>
+            ) : (
+              <CreatePrPanel
+                proposalId={proposal.id}
+                repository={repository}
+                prNumber={pr.number}
+                headRef={pr.headRef}
+                headSha={decision.headSha}
+                targetPath={proposal.targetPath}
+                baseBlobSha={decision.baseBlobSha}
+                baseContent={proposal.baseContent}
+                approvedPatch={decision.editedPatch ?? proposal.patch}
+                patchSha256={decision.patchSha256}
+                lastError={output?.errorCode ?? null}
+              />
+            ))}
         </section>
       ) : proposal.validationStatus === "valid" ? (
         <DecisionPanel proposalId={proposal.id} patch={proposal.patch} />

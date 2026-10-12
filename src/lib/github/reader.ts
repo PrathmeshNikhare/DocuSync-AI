@@ -13,6 +13,21 @@ export const rawPullRequestSchema = z.object({
 });
 export type RawPullRequest = z.infer<typeof rawPullRequestSchema>;
 
+/** The fields the live path and the writer need beyond the snapshot. */
+export const livePullSchema = z.object({
+  state: z.string(),
+  head: z.object({
+    sha: z.string(),
+    ref: z.string().min(1).max(255),
+    // Null when the fork was deleted.
+    repo: z.object({ id: z.int().min(1) }).nullable(),
+  }),
+  base: z.object({
+    ref: z.string().min(1).max(255),
+    repo: z.object({ id: z.int().min(1) }),
+  }),
+});
+
 export const rawPullFileSchema = z.object({
   filename: z.string(),
   previous_filename: z.string().optional(),
@@ -36,6 +51,16 @@ export const GITHUB_ERROR_CODES = [
   "INVALID_PULL_REQUEST_REF",
   "GITHUB_INVALID_RESPONSE",
   "GITHUB_WRITE_BLOCKED",
+  /** A 3xx from GitHub: never followed (docs/13). */
+  "GITHUB_REDIRECT",
+  /** The installation token does not have exactly the requested scope. */
+  "GITHUB_TOKEN_SCOPE",
+  /** GitHub refused to mint the token (e.g. the App lacks a permission). */
+  "GITHUB_TOKEN_REFUSED",
+  /** A conditional write was refused because the target changed (409/422). */
+  "GITHUB_CONFLICT",
+  /** GITHUB_WRITES_ENABLED is not "true". */
+  "WRITES_DISABLED",
   "GITHUB_REQUEST_FAILED",
   "FIXTURE_NOT_FOUND",
 ] as const;
@@ -60,4 +85,11 @@ export interface GitHubReader {
     ref: PullRequestRef,
     maxFiles: number,
   ): Promise<{ files: unknown[]; truncated: boolean }>;
+}
+
+/** Repository contents at a commit, for the live CLI path (contents: read). */
+export interface GitHubTreeReader {
+  /** The recursive tree of `sha`. */
+  getTree(ref: PullRequestRef, sha: string): Promise<unknown>;
+  getBlob(ref: PullRequestRef, sha: string): Promise<unknown>;
 }

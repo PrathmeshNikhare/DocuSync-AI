@@ -9,13 +9,15 @@ const postgresUrl = z.url({ protocol: /^postgres(?:ql)?$/ });
 const serverEnvSchema = z.object({ DATABASE_URL: postgresUrl });
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
+// Comma-separated GitHub App installation ids allowed to queue work, e.g. "123,456".
+const allowedInstallationIds = z
+  .string()
+  .regex(/^\s*\d{1,15}\s*(,\s*\d{1,15}\s*)*$/)
+  .transform((s) => new Set(s.split(",").map((id) => Number(id.trim()))));
+
 const webhookEnvSchema = z.object({
   GITHUB_WEBHOOK_SECRET: z.string().min(20),
-  // Comma-separated GitHub App installation ids allowed to queue work, e.g. "123,456".
-  GITHUB_ALLOWED_INSTALLATION_IDS: z
-    .string()
-    .regex(/^\s*\d{1,15}\s*(,\s*\d{1,15}\s*)*$/)
-    .transform((s) => new Set(s.split(",").map((id) => Number(id.trim())))),
+  GITHUB_ALLOWED_INSTALLATION_IDS: allowedInstallationIds,
 });
 
 const githubAppEnvSchema = z.object({
@@ -143,6 +145,34 @@ export function getGitHubAppEnv(
   source: Record<string, string | undefined> = process.env,
 ): GitHubAppEnv {
   return parseEnv(githubAppEnvSchema, source);
+}
+
+/** Installation ids the live CLI and the writer may act for. */
+export function getAllowedInstallationIds(
+  source: Record<string, string | undefined> = process.env,
+): ReadonlySet<number> {
+  return parseEnv(
+    z.object({ GITHUB_ALLOWED_INSTALLATION_IDS: allowedInstallationIds }),
+    source,
+  ).GITHUB_ALLOWED_INSTALLATION_IDS;
+}
+
+/**
+ * GitHub writes are off unless this is exactly "true" (docs/13). Read on every
+ * call, never cached, so a restarted server with the flag removed can't write.
+ */
+export const writesEnabled = (
+  source: Record<string, string | undefined> = process.env,
+): boolean => source.GITHUB_WRITES_ENABLED === "true";
+
+/** The App's slug names its bot account, `<slug>[bot]`, which authors our PRs. */
+export function getGitHubAppSlug(
+  source: Record<string, string | undefined> = process.env,
+): string {
+  return parseEnv(
+    z.object({ GITHUB_APP_SLUG: z.string().regex(/^[a-z0-9-]{1,100}$/) }),
+    source,
+  ).GITHUB_APP_SLUG;
 }
 
 export function getMigrationDatabaseUrl(

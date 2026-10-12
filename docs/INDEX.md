@@ -14,5 +14,6 @@
 | `10-deployment-and-operations.md` | Local setup, deployment and operations |
 | `11-demo-script.md` | Reproducible portfolio demonstration |
 | `12-decisions.md` | Architecture decision record index |
+| `13-github-write-workflow.md` | Phase 05 approval-gated GitHub write design |
 
 Read the active phase spec as well. Update these docs when implementation changes their claims.

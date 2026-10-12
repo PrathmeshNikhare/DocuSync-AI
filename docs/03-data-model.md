@@ -87,13 +87,34 @@ Use PostgreSQL with `pg` and checked-in SQL migrations. Do not use Prisma.
 - `created_at`
 - Every column except `decision` and `edited_patch` is set by the server, never taken from the request body. Before any GitHub write, the stored binding must match the current head SHA, blob SHA and patch hash; otherwise the approval is stale (docs/07 controls 9 and 10).
 
-### github_outputs
-- `id` UUID primary key
-- `analysis_id` FK
-- `github_pr_url`
-- `head_branch`
-- `status`
-- Unique idempotency reference to prevent duplicate output PRs.
+### pull_requests (Phase 05 additions)
+- `head_ref`, `base_ref` (nullable): the source PR's branch names, recorded by live analyses (`npm run analysis:run -- --live`). A live run sets or refreshes them, also on a row the webhook or an earlier run created (a retargeted PR). Existing outputs keep their own `docs_pr_base_ref`. Fixture rows leave them NULL, and a GitHub write needs both.
+
+### github_outputs (Phase 05, migration 0005)
+- One row per approved decision (`UNIQUE (decision_id)`), the idempotency key for the docs PR. Foreign keys are `ON DELETE RESTRICT`.
+- **Binding (fixed after insert):**
+  - `decision_id`, `proposal_id`, `repository_id`;
+  - `github_repo_id`, `installation_id` (snapshots);
+  - `head_sha`, `base_blob_sha` (SHA-1 only), `patch_sha256`;
+  - `branch` (`docusync/pr-<n>-<12 hex>`);
+  - `docs_pr_base_ref` (the docs PR's base, which is the source PR's head ref);
+  - `created_by`.
+- **Progress (the only columns the app role may update):**
+  - `step` (`pending`, `branch_created`, `committed`, `pr_opened`);
+  - `error_code` (the last failure; cleared on success);
+  - `commit_sha`, `pr_number`, `pr_url` (must match `https://github.com/<owner>/<repo>/pull/<n>`);
+  - `attempts` (at most 5);
+  - `lease_token`, `lease_until`;
+  - `updated_at`.
+- Checks: a PR number and URL exist exactly when `step = 'pr_opened'`; `commit_sha` is set from `committed` on; an opened row has no error code.
+
+### github_output_attempts (Phase 05)
+- `output_id`, `reviewer_id`, `attempted_at`: who pressed "Create documentation PR" each time. Append-only for the app role.
+
+### Role grants (migration 0005)
+- `repositories`: the app role may update only `owner`, `name`, `installation_id` and `updated_at`, which is what the webhook upsert sets. It can't repoint `github_repo_id` or `source`.
+- `github_outputs`: no DELETE or TRUNCATE; UPDATE on the progress columns only.
+- `github_output_attempts`: INSERT and SELECT only.
 
 ## Invariants
 

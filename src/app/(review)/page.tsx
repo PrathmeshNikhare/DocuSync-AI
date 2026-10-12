@@ -3,6 +3,7 @@ import { DashboardView } from "@/components/dashboard-view";
 import { LoadingState } from "@/components/ui";
 import { getPool } from "@/lib/db/pool";
 import { requireReviewer } from "@/lib/review/auth";
+import { codeOnlyErrors } from "@/lib/review/safe";
 import { getDashboard } from "@/lib/review/queries";
 
 export default function Home() {
@@ -17,8 +18,10 @@ export default function Home() {
 }
 
 async function Dashboard() {
-  const reviewer = await requireReviewer();
-  return (
-    <DashboardView dashboard={await getDashboard(getPool(), reviewer.id)} />
-  );
+  return codeOnlyErrors("page_dashboard", async () => {
+    const reviewer = await requireReviewer();
+    return (
+      <DashboardView dashboard={await getDashboard(getPool(), reviewer.id)} />
+    );
+  });
 }

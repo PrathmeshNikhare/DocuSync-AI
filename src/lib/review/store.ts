@@ -7,14 +7,42 @@ import {
 } from "@/lib/assist/assist";
 import type { DocFile, PullRequestSnapshot } from "@/lib/schemas";
 
+export type AnalysisSource =
+  | { kind: "fixture"; scenarioId: string }
+  | {
+      kind: "github";
+      githubRepoId: number;
+      installationId: number;
+      headRef: string;
+      baseRef: string;
+      /** Notes from fetching the docs (skipped files, a truncated tree). */
+      notes: readonly string[];
+    };
+
 /**
  * Persists one pipeline run over a labelled fixture (D-012) as a completed
  * analysis under a repository marked `source = 'fixture'`. Fixture data is never
  * stored with GitHub ids, so it can't be mistaken for a live repository.
  */
-export async function saveFixtureAnalysis(
+export const saveFixtureAnalysis = (
   pool: Pool,
   scenarioId: string,
+  snapshot: PullRequestSnapshot,
+  docs: readonly DocFile[],
+  result: AssistResult,
+) =>
+  saveAnalysis(pool, { kind: "fixture", scenarioId }, snapshot, docs, result);
+
+/**
+ * Persists one completed pipeline run. A live run (docs/13) upserts its
+ * repository by GitHub id exactly as the webhook does, and records the PR's
+ * current branch names, also on a PR row the webhook or an earlier run created
+ * (a retargeted PR is re-analysed without a new commit). Outputs already
+ * requested keep their own snapshot of the docs PR's base.
+ */
+export async function saveAnalysis(
+  pool: Pool,
+  source: AnalysisSource,
   snapshot: PullRequestSnapshot,
   docs: readonly DocFile[],
   result: AssistResult,
@@ -22,22 +50,61 @@ export async function saveFixtureAnalysis(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    let repoId: string;
+    if (source.kind === "fixture") {
+      await client.query(
+        `INSERT INTO repositories (source, owner, name) VALUES ('fixture', 'fixture', $1)
+         ON CONFLICT (owner, name) WHERE source = 'fixture' DO NOTHING`,
+        [source.scenarioId],
+      );
+      repoId = (
+        await client.query<{ id: string }>(
+          "SELECT id FROM repositories WHERE source = 'fixture' AND owner = 'fixture' AND name = $1",
+          [source.scenarioId],
+        )
+      ).rows[0]!.id;
+    } else {
+      await client.query(
+        `INSERT INTO repositories (github_repo_id, owner, name, installation_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (github_repo_id) DO UPDATE
+           SET owner = EXCLUDED.owner, name = EXCLUDED.name,
+               installation_id = EXCLUDED.installation_id, updated_at = now()
+           WHERE (repositories.owner, repositories.name, repositories.installation_id)
+                 IS DISTINCT FROM (EXCLUDED.owner, EXCLUDED.name, EXCLUDED.installation_id)`,
+        [
+          source.githubRepoId,
+          snapshot.ref.owner,
+          snapshot.ref.repo,
+          source.installationId,
+        ],
+      );
+      repoId = (
+        await client.query<{ id: string }>(
+          "SELECT id FROM repositories WHERE github_repo_id = $1",
+          [source.githubRepoId],
+        )
+      ).rows[0]!.id;
+    }
+    const refs =
+      source.kind === "github"
+        ? [source.headRef, source.baseRef]
+        : [null, null];
     await client.query(
-      `INSERT INTO repositories (source, owner, name) VALUES ('fixture', 'fixture', $1)
-       ON CONFLICT (owner, name) WHERE source = 'fixture' DO NOTHING`,
-      [scenarioId],
-    );
-    const repoId = (
-      await client.query<{ id: string }>(
-        "SELECT id FROM repositories WHERE source = 'fixture' AND owner = 'fixture' AND name = $1",
-        [scenarioId],
-      )
-    ).rows[0]!.id;
-    await client.query(
-      `INSERT INTO pull_requests (repository_id, github_pr_number, head_sha, base_sha)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (repository_id, github_pr_number, head_sha) DO NOTHING`,
-      [repoId, snapshot.ref.number, snapshot.headSha, snapshot.baseSha],
+      `INSERT INTO pull_requests (repository_id, github_pr_number, head_sha, base_sha, head_ref, base_ref)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (repository_id, github_pr_number, head_sha) DO UPDATE
+         SET head_ref = EXCLUDED.head_ref, base_ref = EXCLUDED.base_ref
+         WHERE EXCLUDED.head_ref IS NOT NULL
+           AND (pull_requests.head_ref, pull_requests.base_ref)
+               IS DISTINCT FROM (EXCLUDED.head_ref, EXCLUDED.base_ref)`,
+      [
+        repoId,
+        snapshot.ref.number,
+        snapshot.headSha,
+        snapshot.baseSha,
+        ...refs,
+      ],
     );
     const prId = (
       await client.query<{ id: string }>(
@@ -63,13 +130,18 @@ export async function saveFixtureAnalysis(
          RETURNING id`,
         [
           prId,
-          // Every fixture run is a new analysis of the same fixture commit.
-          `fixture:${scenarioId}:${randomUUID()}`,
+          // Every run is a new analysis of the same commit.
+          source.kind === "fixture"
+            ? `fixture:${source.scenarioId}:${randomUUID()}`
+            : `live:${source.githubRepoId}:${snapshot.ref.number}:${randomUUID()}`,
           snapshot.title,
           JSON.stringify(changedFiles),
           result.deterministic.engineVersion,
           result.modelStatus,
-          JSON.stringify(result.deterministic.missingContext),
+          JSON.stringify([
+            ...(source.kind === "github" ? source.notes : []),
+            ...result.deterministic.missingContext,
+          ]),
         ],
       )
     ).rows[0]!.id;

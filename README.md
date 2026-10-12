@@ -67,13 +67,24 @@ These need a local Ollama and `OLLAMA_MODEL` (for example `llama3.2:3b`) in `.en
 
 ```bash
 npm run db:migrate                                                      # applies 0003_review.sql
-npm run reviewer:add -- --username alice --name "Alice Example"         # prints a generated password once
+npm run reviewer:add -- --username alice --name "Alice Example" --password-file ./alice.pw   # writes a generated password to a new file
 npm run analysis:run -- --fixture env-var-renamed                       # runs the pipeline on a fixture and saves it
 npm run reviewer:grant -- --username alice --repo fixture/env-var-renamed
 npm run dev                                                             # sign in at http://localhost:3000/login
 ```
 
-`reviewer:add` and `reviewer:grant` use the owner role (`MIGRATION_DATABASE_URL`): the app's own role can't create accounts or grant access. `analysis:run` uses the model when `OLLAMA_MODEL` is set; without it the analysis is deterministic-only and has no patches to review. Fixture analyses are labelled as fixture data everywhere in the UI. Accepting a patch records a decision; nothing is written to GitHub.
+`reviewer:add` and `reviewer:grant` (and `reviewer:revoke`, `reviewer:disable`, `reviewer:enable`, `reviewer:unlock`, `sessions:prune`) use the owner role (`MIGRATION_DATABASE_URL`): the app's own role can't create accounts or grant access. `analysis:run` uses the model when `OLLAMA_MODEL` is set; without it the analysis is deterministic-only and has no patches to review. Fixture analyses are labelled as fixture data everywhere in the UI. Accepting a patch records a decision; nothing is written to GitHub.
+
+### Documentation pull requests (Phase 05, off by default)
+
+GitHub writes need `GITHUB_WRITES_ENABLED=true`, `GITHUB_APP_SLUG`, and an App with Contents and Pull requests read and write (docs/10). Only live analyses can be published:
+
+```bash
+npm run db:migrate                                                       # applies 0005_github_writes.sql
+npm run analysis:run -- --live owner/repo#123 --installation 987654      # same-repository PRs only
+```
+
+After a reviewer accepts or edits a proposal, **Create documentation PR…** opens one PR with that change against the source PR's head branch, after re-checking the approval and GitHub's current state (docs/13). It is never merged automatically. This path has been tested against a fetch-level fake of GitHub only, not a live App.
 
 ### Sending a test webhook locally
 

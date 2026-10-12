@@ -27,6 +27,7 @@ import { getAnalysis, getDashboard, getReview } from "./queries";
 import {
   LOGIN_LIMIT,
   MAX_CONCURRENT_LOGINS,
+  MAX_SESSIONS_PER_REVIEWER,
   login,
   reviewerForToken,
   revokeSession,
@@ -186,6 +187,22 @@ describe("login and sessions", () => {
     expect(await reviewerForToken(pool, r3.ok ? r3.token : "")).toBeUndefined();
     expect(await reviewerForToken(pool, "x' OR 1=1 --")).toBeUndefined();
     expect(await reviewerForToken(pool, undefined)).toBeUndefined();
+  });
+
+  it("keeps at most a few live sessions per reviewer, revoking the oldest", async () => {
+    await addReviewer("alice");
+    const tokens: string[] = [];
+    for (let i = 0; i <= MAX_SESSIONS_PER_REVIEWER; i++) {
+      const r = await login(pool, "alice", PASSWORD);
+      tokens.push(r.ok ? r.token : "");
+    }
+    expect(await reviewerForToken(pool, tokens[0])).toBeUndefined();
+    for (const t of tokens.slice(1))
+      expect(await reviewerForToken(pool, t)).toBeDefined();
+    const { rows } = await pool.query<{ live: string }>(
+      "SELECT count(*) AS live FROM sessions WHERE revoked_at IS NULL",
+    );
+    expect(Number(rows[0]!.live)).toBe(MAX_SESSIONS_PER_REVIEWER);
   });
 });
 

@@ -10,6 +10,10 @@ export interface LogFields {
   outcome?: string;
   code?: string;
   analysisId?: string;
+  /** Opaque ids for GitHub write attempts (docs/13). */
+  outputId?: string;
+  reviewerId?: string;
+  step?: string;
   /** Model id and prompt version of an LLM call; never the prompt itself. */
   model?: string;
   promptVersion?: string;
@@ -24,6 +28,9 @@ const ALLOWED: readonly (keyof LogFields)[] = [
   "outcome",
   "code",
   "analysisId",
+  "outputId",
+  "reviewerId",
+  "step",
   "model",
   "promptVersion",
   "durationMs",

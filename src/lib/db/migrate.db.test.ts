@@ -10,7 +10,8 @@ const MIGRATIONS = path.join(process.cwd(), "migrations");
 
 const resetSchema = (c: { query: (sql: string) => Promise<unknown> }) =>
   c.query(
-    `DROP TABLE IF EXISTS review_decisions, patch_proposals, impact_candidates,
+    `DROP TABLE IF EXISTS github_output_attempts, github_outputs,
+       review_decisions, patch_proposals, impact_candidates,
        repository_reviewers, login_failures, sessions, reviewers,
        analyses, pull_requests, repositories, schema_migrations CASCADE`,
   );
@@ -24,6 +25,7 @@ describe("migrate", () => {
         "0002_restrict_app_role.sql",
         "0003_review.sql",
         "0004_review_hardening.sql",
+        "0005_github_writes.sql",
       ]);
       expect(await migrate(c, MIGRATIONS)).toEqual([]);
       const { rows } = await c.query<{ name: string }>(
@@ -34,6 +36,7 @@ describe("migrate", () => {
         "0002_restrict_app_role.sql",
         "0003_review.sql",
         "0004_review_hardening.sql",
+        "0005_github_writes.sql",
       ]);
     });
   });

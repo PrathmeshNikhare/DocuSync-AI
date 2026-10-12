@@ -26,3 +26,9 @@ A pull request changes an environment variable or API route. The tool should fla
 - No unreviewed write operation.
 - Have a reproducible fallback recording or fixture-driven demo if external GitHub/Ollama services are unavailable.
 - State clearly which parts are live and which are mocked.
+
+## What can be shown today (Phase 05)
+
+- **Steps 3–7 with fixtures:** `npm run analysis:run -- --fixture <name>`. Fixture analyses never offer a PR; the page says so.
+- **Steps 1–9 live:** these need your own GitHub App with the permissions in docs/10, `GITHUB_WRITES_ENABLED=true`, `GITHUB_APP_SLUG`, and a same-repository PR analysed with `npm run analysis:run -- --live owner/repo#N --installation <id>`. Then grant a reviewer, accept or edit, and press **Create documentation PR…**.
+- **Not run in this repository:** the live path and the GitHub write have only been exercised against a fetch-level fake of GitHub (`src/test/fake-github.ts`). The first live run must be treated as unverified, and step 9's CI checks depend on the target repository.

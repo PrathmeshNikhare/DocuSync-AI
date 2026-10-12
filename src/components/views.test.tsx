@@ -289,8 +289,10 @@ const review = (over: Partial<Review> = {}): Review => ({
   },
   analysisId: "a1",
   repository: repo,
-  pr: { number: 1, headSha: SHA, baseSha: SHA, title: "Rename" },
+  pr: { number: 1, headSha: SHA, baseSha: SHA, title: "Rename", headRef: null },
   decision: null,
+  output: null,
+  writesEnabled: false,
   ...over,
 });
 
@@ -344,6 +346,104 @@ describe("ReviewView", () => {
     const trail = screen.getByRole("table", { name: /recorded decision/i });
     expect(within(trail).getByText("c".repeat(64))).toBeTruthy();
     expect(within(trail).getByText("alice")).toBeTruthy();
+  });
+
+  it("offers the PR step only for live, decided, publishable data", () => {
+    const accepted = {
+      decision: "accepted" as const,
+      editedPatch: null,
+      reviewer: { username: "alice", displayName: "Alice" },
+      decidedAt: "2026-10-11T11:00:00.000Z",
+      patchSha256: "c".repeat(64),
+      headSha: SHA,
+      baseBlobSha: "b".repeat(40),
+    };
+    const live = {
+      ...repo,
+      source: "github" as const,
+      owner: "acme",
+      name: "widgets",
+    };
+    const button = () =>
+      screen.queryByRole("button", { name: "Create documentation PR…" });
+
+    render(
+      <ReviewView
+        review={review({ decision: accepted, writesEnabled: true })}
+      />,
+    );
+    expect(screen.getByText("No pull request for fixture data")).toBeTruthy();
+    expect(button()).toBeNull();
+    cleanup();
+
+    render(
+      <ReviewView review={review({ decision: accepted, repository: live })} />,
+    );
+    expect(screen.getByText("GitHub writes are turned off")).toBeTruthy();
+    expect(button()).toBeNull();
+    cleanup();
+
+    render(
+      <ReviewView
+        review={review({
+          decision: accepted,
+          repository: live,
+          writesEnabled: true,
+        })}
+      />,
+    );
+    expect(screen.getByText("This analysis can't be published")).toBeTruthy();
+    cleanup();
+
+    const pr = { ...review().pr, headRef: "feature/x" };
+    render(
+      <ReviewView
+        review={review({
+          decision: accepted,
+          repository: live,
+          writesEnabled: true,
+          pr,
+        })}
+      />,
+    );
+    expect(button()).toBeTruthy();
+    cleanup();
+
+    render(
+      <ReviewView
+        review={review({
+          decision: { ...accepted, decision: "rejected" },
+          repository: live,
+          writesEnabled: true,
+          pr,
+        })}
+      />,
+    );
+    expect(button()).toBeNull();
+    cleanup();
+
+    render(
+      <ReviewView
+        review={review({
+          decision: accepted,
+          repository: live,
+          writesEnabled: true,
+          pr,
+          output: {
+            step: "pr_opened",
+            errorCode: null,
+            prNumber: 9,
+            prUrl: "https://github.com/acme/widgets/pull/9",
+          },
+        })}
+      />,
+    );
+    expect(button()).toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: /pull request #9/ })
+        .getAttribute("href"),
+    ).toBe("https://github.com/acme/widgets/pull/9");
   });
 
   it("refuses decisions on a proposal that did not pass validation", () => {
