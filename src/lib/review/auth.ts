@@ -25,8 +25,12 @@ export const sessionCookieOptions = {
  * across requests.
  */
 export const getCurrentReviewer = cache(
-  async (): Promise<Reviewer | undefined> =>
-    reviewerForToken(getPool(), (await cookies()).get(SESSION_COOKIE)?.value),
+  async (): Promise<Reviewer | undefined> => {
+    // Read the cookie first: it defers prerendering to request time, so nothing
+    // below (env validation, the pool) runs at build time.
+    const token = (await cookies()).get(SESSION_COOKIE)?.value;
+    return reviewerForToken(getPool(), token);
+  },
 );
 
 /** For pages: the reviewer, or a redirect to the login page. */
