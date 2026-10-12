@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { analyzeImpact, type ImpactResult } from "@/lib/impact-engine/engine";
 import { extractSignals } from "@/lib/impact-engine/signals";
 import {
@@ -14,7 +15,7 @@ import {
   type LlmProvider,
 } from "@/lib/llm/provider";
 import { gitBlobSha } from "@/lib/patches/blob-sha";
-import { proseIssues } from "@/lib/patches/content";
+import { knownLinksIn, proseIssues } from "@/lib/patches/content";
 import { placeableEdits, renderEdits } from "@/lib/patches/diff";
 import { validatePatch } from "@/lib/patches/validate";
 import {
@@ -63,7 +64,35 @@ export interface AssistResult {
   outcomes: CandidateOutcome[];
   /** Duration of each model call, for latency reporting. */
   callDurationsMs: number[];
+  /**
+   * What each valid proposal was validated against, by target path. Stored with
+   * the proposal so a reviewer's edit is validated by the same rules.
+   */
+  validationContexts: Record<string, ValidationContext>;
 }
+
+/**
+ * Bounds for a proposal's stored validation context. The context is capped here,
+ * where it is built, and the same schema checks it on save and on read, so a large
+ * PR can't produce a context that later fails to load. Dropping names or links
+ * only makes validation stricter: a hunk loses a way to count as related, and a
+ * dropped link counts as new.
+ */
+export const VALIDATION_CONTEXT_LIMITS = {
+  relatedLines: 500,
+  relatedTerms: 1_000,
+  termChars: 200,
+  knownLinks: 5_000,
+  linkChars: 2_000,
+} as const;
+
+const L = VALIDATION_CONTEXT_LIMITS;
+export const validationContextSchema = z.strictObject({
+  relatedLines: z.array(z.int().min(1)).max(L.relatedLines),
+  relatedTerms: z.array(z.string().max(L.termChars)).max(L.relatedTerms),
+  knownLinks: z.array(z.string().max(L.linkChars)).max(L.knownLinks),
+});
+export type ValidationContext = z.infer<typeof validationContextSchema>;
 
 /** Shown instead of model prose that fails `proseIssues`. */
 export const WITHHELD_TEXT =
@@ -103,6 +132,7 @@ export async function assistImpact(
     proposals: [],
     outcomes: [],
     callDurationsMs: [],
+    validationContexts: {},
   };
   const skip = (docPath: string, code?: LlmFailureCode) =>
     result.outcomes.push({
@@ -114,7 +144,9 @@ export async function assistImpact(
 
   const relatedTerms = [
     ...new Set(extractSignals(snapshot.files).signals.map((s) => s.value)),
-  ];
+  ]
+    .filter((t) => t.length <= L.termChars)
+    .slice(0, L.relatedTerms);
   const diffText = snapshot.files
     .flatMap((f) => f.hunks.flatMap((h) => h.lines))
     .join("\n");
@@ -218,17 +250,25 @@ export async function assistImpact(
         ? renderEdits(doc.path, doc.content, kept)
         : { ok: false as const, issues: [...new Set(dropped)] };
     const baseBlobSha = gitBlobSha(doc.content);
+    const context: ValidationContext = {
+      relatedLines: candidate.evidence
+        .filter((e) => e.sourcePath === doc.path && e.lineRange)
+        .map((e) => e.lineRange!.start)
+        .slice(0, L.relatedLines),
+      relatedTerms,
+      knownLinks: [...knownLinksIn(`${doc.content}\n${diffText}`)]
+        .filter((l) => l.length <= L.linkChars)
+        .slice(0, L.knownLinks),
+    };
     const checked = rendered.ok
       ? validatePatch({
           targetPath: candidate.docPath,
           patch: rendered.patch,
           baseBlobSha,
           doc,
-          relatedLines: candidate.evidence
-            .filter((e) => e.sourcePath === doc.path && e.lineRange)
-            .map((e) => e.lineRange!.start),
-          relatedTerms,
-          knownText: `${doc.content}\n${diffText}`,
+          relatedLines: context.relatedLines,
+          relatedTerms: context.relatedTerms,
+          knownLinks: new Set(context.knownLinks),
         })
       : undefined;
     const issues = !rendered.ok
@@ -256,6 +296,7 @@ export async function assistImpact(
     if (proposal?.success) {
       outcome.patch = "valid";
       result.proposals.push(proposal.data);
+      result.validationContexts[candidate.docPath] = context;
     } else {
       outcome.patch = "rejected";
       outcome.issues = issues.length > 0 ? issues : ["PROPOSAL_SCHEMA_INVALID"];

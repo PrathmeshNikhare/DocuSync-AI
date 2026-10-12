@@ -42,20 +42,42 @@ Never include stack traces, secrets, raw authorization headers or private model 
 - Validate repository/PR references and authorize the user.
 - Return an analysis identifier and state.
 
-### `GET /api/analyses/:id`
+### `GET /api/analyses/:id` (implemented in Phase 04)
 - Return status, impact candidates and safe error information.
 - Enforce access to the associated repository.
 
-### `GET /api/reviews/:id`
+### `GET /api/reviews/:id` (implemented in Phase 04)
 - Return proposal metadata, evidence and diff content necessary for review.
 - Do not return secrets or unnecessary repository content.
 
-### `PATCH /api/reviews/:id`
+### `PATCH /api/reviews/:id` (implemented in Phase 04)
 - Accept one decision: `accepted`, `edited` (with `editedPatch`), or `rejected` (`reviewDecisionInputSchema`).
 - The body must not carry `reviewerId` or `proposalId`. The reviewer comes from the authenticated session, and the proposal comes from the URL.
 - Require authentication and authorization.
 - Validate edited patch; record reviewer and decision.
 - Acceptance is not itself a GitHub write unless the explicit approval workflow is implemented and invoked.
+
+### Implemented behaviour (Phase 04)
+
+All three endpoints authenticate with the session cookie and answer with `cache-control: no-store`. Errors use the envelope above, plus an `issues` array for patch validation failures. A missing resource and one the reviewer has no grant for both return 404, so ids can't be probed.
+
+| Case | Status | Code |
+|---|---|---|
+| Decision recorded | 200 | body `{decision: ReviewDecisionRecord}` |
+| GET with access | 200 | the analysis or review view |
+| No or expired session | 401 | `UNAUTHENTICATED` |
+| PATCH whose `Origin` isn't this site (or, with no `Origin`, `Sec-Fetch-Site` isn't `same-origin`) | 403 | `FORBIDDEN_ORIGIN` |
+| Unknown id, malformed id, or no grant for the repository | 404 | `NOT_FOUND` |
+| PATCH body not `application/json` | 415 | `UNSUPPORTED_MEDIA_TYPE` |
+| PATCH body over 256 KiB | 413 | `PAYLOAD_TOO_LARGE` |
+| Body not JSON, or not one of the three decision shapes (extra keys such as `reviewerId` included) | 400 | `INVALID_JSON`, `VALIDATION_ERROR` |
+| Proposal already decided | 409 | `INVALID_TRANSITION` |
+| Proposal did not pass validation | 409 | `PROPOSAL_NOT_VALID` |
+| Edited patch identical to the proposal | 422 | `EDIT_UNCHANGED` |
+| Edited patch fails `validatePatch` | 422 | `EDIT_INVALID`, with `issues` |
+| Unexpected failure (database down, corrupt stored data) | 500 | `INTERNAL_ERROR` (the cause is neither returned nor logged) |
+
+Sign-in and sign-out are Server Actions on `/login` and in the review layout, not JSON endpoints. Next.js refuses a Server Action whose `Origin` doesn't match the host; it answers 500 in that case.
 
 ### `POST /api/reviews/:id/create-pr`
 - Later phase only.

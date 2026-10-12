@@ -76,3 +76,21 @@ Record material decisions. Do not use this file as a daily diary.
 - Decision: The model never chooses a file and never writes a diff. It returns structured JSON (Zod-validated, with one retry for invalid output): a verdict for assessments, and `{find, replace}` edits for patches. The target doc comes from the deterministic candidate. The server drops edits that can't be placed exactly once (`placeableEdits`), renders a unified diff, and validates it with `validatePatch`: allowed doc paths (root `*.md`/`*.markdown` and `docs/**`, excluding AI-agent instruction files; narrowed on 2026-10-11 after the security check, with the user's approval, from an earlier allowlist that also had `.mdx` and `.txt`), base blob SHA, strict application, size and breadth limits, relatedness to evidence, and unsafe-content checks. The same validator is meant for reviewer-edited patches in Phase 04. No patch is requested without concrete change facts. The model's assessment is stored apart from the deterministic candidate and never changes it. In model-assisted evaluation, the model sees only flagged candidates and can only demote them. `patchProposalSchema.candidateId` is optional until proposals are persisted, and the schema gains `headSha` and `validationIssues`.
 - Alternatives: The model writes the unified diff (more malformed output on small models); the model screens unflagged docs too (could recover behaviour-only misses, but costs more calls and context); a third-party diff library (a dependency for about 150 lines of strict code).
 - Consequences: Proposals are narrow and reproducible from the doc and the edits. A model can't widen a patch's reach, but it can still write wrong prose that passes validation, so human review stays mandatory. Model-assisted mode can't raise recall. Persistence and the runner remain deferred (D-010).
+
+## D-012 — Review UI: local reviewer accounts, fixture-sourced data, one final decision, CSP without nonce
+- Status: Accepted (user-approved 2026-10-11)
+- Date: 2026-10-11
+- Context: Phase 04 needs authenticated reviewers, persisted analyses to review, a decision model and security headers. No GitHub App or OAuth app is available here, no runner exists (D-009, D-010), and the project runs with Cache Components (Phase 00).
+- Decision:
+  - **Authentication:** local reviewer accounts (scrypt passwords, created by an operator with the owner role), database sessions (random token stored as SHA-256, `HttpOnly`, `SameSite=Strict`, 12 hours) and per-repository grants. No auth library.
+  - **Data:** analyses come from `npm run analysis:run -- --fixture <name>`, which runs the real pipeline and saves it under a repository marked `source = 'fixture'`. Fixture rows have no GitHub ids, and the UI labels them.
+  - **Decisions:** one final decision per proposal (accepted, edited or rejected), enforced in code under a row lock and by a unique constraint. Accepting is not a GitHub write.
+  - **CSP:** set statically in `next.config.ts` with `script-src 'self' 'unsafe-inline'` instead of the planned nonce, because nonce CSP is incompatible with Cache Components' static shell (user choice). So there is no `proxy.ts`. Authorization lives in the data layer.
+  - **Tests:** UI tests use React Testing Library with jsdom.
+- Alternatives:
+  - **Authentication:** GitHub OAuth (real identity, but not verifiable here); an auth library (a dependency on top of accounts or OAuth anyway).
+  - **Data:** building the live runner now (much larger scope; revisits D-009 and D-010).
+  - **Decisions:** re-decide until written (more states).
+  - **CSP:** turning Cache Components off for a nonce CSP; experimental SRI.
+  - **Tests:** Playwright.
+- Consequences: The review flow is real and testable end to end with fixture data. Reviewers are not GitHub identities, so Phase 05 must authorize GitHub writes separately and compare the recorded binding (head SHA, blob SHA, patch hash) against GitHub before writing. The script CSP relies on never rendering untrusted HTML. Login rate limiting is per username only.

@@ -1,4 +1,5 @@
 import { repoPathSchema } from "@/lib/schemas";
+import { UNSAFE_CHAR } from "./content";
 
 // Default policy (D-011): Markdown files at the repository root or under docs/.
 // Comparison is case-insensitive so "DOCS/" or "README.MD" cannot alias past it
@@ -23,6 +24,8 @@ export function docPathIssues(path: string): string[] {
   if (!repoPathSchema.safeParse(path).success) return ["PATH_INVALID"];
   // Precomposed and decomposed forms of one name must not be two different paths.
   if (path.normalize("NFC") !== path) return ["PATH_NOT_NORMALIZED"];
+  // Blank-rendering characters (e.g. Hangul fillers) make two paths look identical.
+  if (UNSAFE_CHAR.test(path)) return ["PATH_INVALID"];
   const issues: string[] = [];
   const lower = path.toLowerCase();
   const segments = lower.split("/");

@@ -216,3 +216,79 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
 - Decisions: none new (D-011 as updated).
 - Git state: `main`; Phase 03 committed locally on top of `65d3b0f`; not pushed.
 - Handoff path: `progress/handoffs/phase-03-llm-patches.md`
+
+### 2026-10-11 — Phase 04 — IN PROGRESS (local checks PASS)
+- Scope: the approved Phase 04 plan, with the user's choices: local reviewer accounts, labelled fixture runs as the data source, React Testing Library with jsdom, one final decision (D-012). During implementation the user also chose a CSP without a nonce, keeping Cache Components.
+- Changes:
+  - `migrations/0003_review.sql`;
+  - `src/lib/review/` (sessions, passwords, authorized queries, decisions, saving fixture runs, API logic, auth helpers, diff rows, visible text);
+  - pages `/login`, `/`, `/analyses/[id]`, `/reviews/[id]` and the API routes;
+  - components with tests;
+  - the security headers via `next.config.ts`;
+  - the `analysis:run`, `reviewer:add` and `reviewer:grant` scripts;
+  - `validatePatch` now takes a known-link set (`knownLinksIn`), and `assistImpact` returns each proposal's validation context.
+  - Docs 02, 03, 04, 07, 08, 09, 10 and README; D-012.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (600 passed, twice), `test:db` (42), `build`, `eval:impact` (baseline unchanged), `test:ollama` (4), `npm audit --omit=dev` (0). Also 13 mutation checks (all caught; see docs/08) and an end-to-end run against `next dev` (all steps passed after one fix).
+- Test results: 600 unit, 42 DB, 4 live.
+- Fixes made along the way:
+  - **Migration:** `login_failures` used `bigserial`, which the app role couldn't use. It became `uuid`; the migration was uncommitted, and the test schema was reset.
+  - **Next.js invariant:** the end-to-end run hit an invariant when the login page re-rendered after a failed no-JavaScript sign-in while the layout read cookies. The signed-in nav moved to a `(review)` route group.
+  - **Test timeout:** the Phase 01 webhook route test's timeout was raised to 20 seconds because its cold import got slower with jsdom in the suite.
+- Blockers/limitations:
+  - `npm audit` reports 5 high findings in dev-only lint tooling (`eslint-config-next` → `braces`). They were already present, have no non-breaking fix, and production dependencies show 0.
+  - Script CSP allows `'unsafe-inline'`.
+  - No MFA or per-IP rate limit.
+  - Reviewers are not GitHub identities.
+- Decisions: D-012.
+- Git state: `main`, HEAD `f9f19a3`, Phase 04 uncommitted.
+- Handoff path: `progress/handoffs/phase-04-review-ui.md`
+
+### 2026-10-12 — Phase 04 — IN PROGRESS (review fixes applied)
+- Scope: the user-selected `/review` fixes M1-M3, L1-L3, L5, L6, L8 and the testable parts of L9. The reviewer agent's findings were reproduced first: the Zod double `.max`, scrypt throwing, Next's cookie delete without `Secure`, and 20 parallel logins all being checked.
+- Changes:
+  - **M1:** `VALIDATION_CONTEXT_LIMITS` and `validationContextSchema` live in `assist.ts`; the context is capped where it is built and checked on save and read.
+  - **M2:** a `guarded` wrapper in `api.ts` returns `500 INTERNAL_ERROR` with a request id.
+  - **M3:** `reserveAttempt` takes `pg_advisory_xact_lock` and records the attempt before the password check.
+  - **L1:** the validation claim shows only for valid proposals. **L2:** a separate `PROPOSAL_NOT_VALID` code.
+  - **L3:** sign-out sets the cookie with its options and `maxAge: 0`.
+  - **L5:** focus returns to the opener, or moves to the success notice.
+  - **L8:** `parseStoredHash` accepts only N of 2^14 or 2^15, r = 8, p of 1 or 2.
+  - **Tests:** a new `api.test.ts` and `actions.test.ts`, plus additions to the DB, UI and helper tests.
+  - **Docs:** 03, 04, 07 and 08, including L4 and L7 documented as accepted.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (615), `test:db` (46), `build`, `eval:impact` (unchanged), `npm audit --omit=dev` (0). Also 10 mutation checks (all caught), a race probe (5 checked, 15 refused), and an end-to-end run against `next dev` (passed). Docker Desktop had stopped overnight and was restarted.
+- Test results: 615 unit, 46 DB.
+- Blockers/limitations: L4 and L7 accepted and documented; the nits are not fixed.
+- Decisions: none new.
+- Git state: `main`, HEAD `f9f19a3`, Phase 04 uncommitted.
+- Handoff path: `progress/handoffs/phase-04-review-ui.md` (updated)
+
+### 2026-10-12 — Phase 04 — IN PROGRESS (security-check fixes applied)
+- Scope: the user-selected `/security-check` fixes M-A, L-A, L-B, L-C, L-E, L-F and L-G; L-D documented with an unlock command; Info 3 checked in an end-to-end run; Info 1, 2, 4 and 5 recorded as Phase 05 requirements. The reviewer's privilege, character and HSTS findings were reproduced first.
+- Changes:
+  - **Migration 0004:** an index on `login_failures (attempted_at)`; revokes UPDATE and DELETE on proposals and candidates; sessions revoke-only through a column grant.
+  - **Sign-in:** malformed usernames refused at once; `MAX_CONCURRENT_LOGINS = 4` with `BUSY`; `auth_login` and `auth_logout` log events.
+  - **Decisions:** accepting re-validates the stored patch; the row lock was removed (it needs UPDATE privilege) in favour of immutability plus the unique constraint.
+  - **Characters:** default-ignorable code points and U+2800 added to both checks and to the path policy.
+  - **Headers:** HSTS in production.
+  - **CLI:** `reviewer:unlock`.
+  - **Docs:** 03, 07, 08 and 10.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (634), `test:db` (49), `build`, `eval:impact` (unchanged), `npm audit --omit=dev` (0), `db:migrate` (0004 applied to dev). Also 10 mutation checks (all caught), and end-to-end runs against `next dev` earlier and against a production build (`next start`): cache headers, HSTS and the `__Host-` cookie verified.
+- Observed: one `analysis:run` got `LLM_UNAVAILABLE` on its patch call. The re-run was fine, and the saved outcome recorded the code, so the pipeline handled it as designed.
+- Test results: 634 unit, 49 DB.
+- Blockers/limitations: an upstream per-IP rate limiter is required before exposing `/login`; the audit trail is tamper-evident, not unforgeable; Phase 05 requirements are recorded.
+- Decisions: none new.
+- Git state: `main`, HEAD `f9f19a3`, Phase 04 uncommitted.
+- Handoff path: `progress/handoffs/phase-04-review-ui.md` (updated)
+
+### 2026-10-12 — Phase 04 — PASS
+- Scope: gate closure, confirmed by the user, plus the local checkpoint commit.
+- Changes:
+  - `STATUS.md` and the handoff mark Phase 04 as PASS.
+  - The unit project's test timeout is now 20 seconds. The final gate re-run hit a cold-import timeout in the pool test (`creates one pool lazily`, 5,032 ms), the same cause as the earlier webhook test, so the per-file override was replaced by one project setting. The Phase 01 test files are unchanged from HEAD.
+  - No product code changes since the security-check fixes.
+- Commands run (all exit 0), re-run on the final tree: `npm run format:check`, `lint`, `typecheck`, `test` (26 files, 634 passed, twice), `test:db` (49 passed), `build`, `eval:impact` (baseline unchanged). `npm audit --omit=dev` (0), the production-mode end-to-end run and the mutation checks were last run after the security-check fixes.
+- Acceptance criteria: all Phase 04 exit criteria met locally on fixture data. GitHub writes are out of scope (Phase 05). GitHub Actions CI NOT RUN (no remote).
+- Blockers/limitations: an upstream per-IP rate limiter is required before exposing `/login`; the audit trail is tamper-evident, not unforgeable; Phase 05 requirements are listed in the handoff and docs/07.
+- Decisions: none new (D-012).
+- Git state: `main`; Phase 04 committed locally on top of `f9f19a3`; not pushed.
+- Handoff path: `progress/handoffs/phase-04-review-ui.md`

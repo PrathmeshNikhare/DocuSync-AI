@@ -6,6 +6,7 @@ import { assistImpact } from "@/lib/assist/assist";
 import { getOllamaEnv, type OllamaEnv } from "@/lib/env";
 import { scenarioSchema, snapshotFor } from "@/lib/impact-engine/evaluate";
 import { gitBlobSha } from "@/lib/patches/blob-sha";
+import { knownLinksIn } from "@/lib/patches/content";
 import { validatePatch } from "@/lib/patches/validate";
 import { patchProposalSchema } from "@/lib/schemas";
 import { createOllamaProvider } from "./ollama";
@@ -71,7 +72,7 @@ describe("Ollama (live)", { timeout: 300_000 }, () => {
           doc: { path: p.targetPath, content: doc },
           relatedLines: [],
           relatedTerms: ["API_KEY", "API_TOKEN"],
-          knownText: doc,
+          knownLinks: knownLinksIn(doc),
         }).ok,
       ).toBe(true);
     }

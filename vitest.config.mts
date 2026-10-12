@@ -1,7 +1,10 @@
 import { fileURLToPath } from "node:url";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // Component tests (*.test.tsx) opt into jsdom with a `@vitest-environment` comment.
+  plugins: [react()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -18,6 +21,9 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
+          // Cold imports of route and pool modules can pass 5 s when the whole suite,
+          // jsdom tests included, runs in parallel. No test asserts timing this way.
+          testTimeout: 20_000,
           include: ["src/**/*.test.{ts,tsx}"],
           exclude: ["src/**/*.db.test.ts", "src/**/*.ollama.test.ts"],
         },

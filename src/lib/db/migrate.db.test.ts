@@ -10,7 +10,9 @@ const MIGRATIONS = path.join(process.cwd(), "migrations");
 
 const resetSchema = (c: { query: (sql: string) => Promise<unknown> }) =>
   c.query(
-    "DROP TABLE IF EXISTS analyses, pull_requests, repositories, schema_migrations CASCADE",
+    `DROP TABLE IF EXISTS review_decisions, patch_proposals, impact_candidates,
+       repository_reviewers, login_failures, sessions, reviewers,
+       analyses, pull_requests, repositories, schema_migrations CASCADE`,
   );
 
 describe("migrate", () => {
@@ -20,6 +22,8 @@ describe("migrate", () => {
       expect(await migrate(c, MIGRATIONS)).toEqual([
         "0001_ingestion.sql",
         "0002_restrict_app_role.sql",
+        "0003_review.sql",
+        "0004_review_hardening.sql",
       ]);
       expect(await migrate(c, MIGRATIONS)).toEqual([]);
       const { rows } = await c.query<{ name: string }>(
@@ -28,6 +32,8 @@ describe("migrate", () => {
       expect(rows.map((r) => r.name).sort()).toEqual([
         "0001_ingestion.sql",
         "0002_restrict_app_role.sql",
+        "0003_review.sql",
+        "0004_review_hardening.sql",
       ]);
     });
   });

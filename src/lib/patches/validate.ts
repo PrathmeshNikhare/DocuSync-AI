@@ -31,8 +31,8 @@ export interface PatchCheck {
   relatedLines: readonly number[];
   /** Names from the PR (env vars, routes, ...) that make a hunk related. */
   relatedTerms: readonly string[];
-  /** Text a new URL must already appear in (the doc and the PR diff). */
-  knownText: string;
+  /** Resolved links a new link must match (`knownLinksIn` of the doc and PR diff). */
+  knownLinks: ReadonlySet<string>;
 }
 
 export type PatchValidation =
@@ -110,17 +110,11 @@ export function validatePatch(input: PatchCheck): PatchValidation {
   if (hasScriptScheme(addedText)) issues.add("PATCH_UNSAFE_LINK");
   // Every link is resolved as a browser would; an external one must exactly match
   // a link already in the doc or the PR diff.
-  const known = new Set(
-    linkTargets(input.knownText)
-      .map(resolveLink)
-      .filter((l) => l?.external)
-      .map((l) => l!.href),
-  );
   for (const raw of linkTargets(addedText)) {
     const link = resolveLink(raw);
     if (link && UNSAFE_PROTOCOLS.has(link.protocol)) {
       issues.add("PATCH_UNSAFE_LINK");
-    } else if (!link || (link.external && !known.has(link.href))) {
+    } else if (!link || (link.external && !input.knownLinks.has(link.href))) {
       issues.add("PATCH_NEW_URL");
     }
   }

@@ -16,7 +16,21 @@ Use PostgreSQL with `pg` and checked-in SQL migrations. Do not use Prisma.
 - `pull_requests`: unique `(repository_id, github_pr_number, head_sha)`, plus `base_sha`. There is no `status` or `updated_at` column yet.
 - `analyses`: unique `idempotency_key`, `delivery_id` (the first delivery that created the row), `status`, `started_at`, `completed_at`, `error_code`. CHECK constraints mirror `analysisStateSchema`: valid statuses, `error_code` set only when failed and in safe upper-snake form, timestamps consistent with the status and in chronological order.
 - `0002_restrict_app_role.sql` (no tables): revokes the app role's access to `schema_migrations` and TEMP, and CREATE on `public` from PUBLIC (see docs/07, control 12).
-- The other entities below are still planned.
+- The other entities below are still planned, apart from those added in Phase 04.
+
+## Implemented tables (Phase 04, `0003_review.sql`)
+
+- `repositories` gains `source` (`github` or `fixture`). `github_repo_id` and `installation_id` are required exactly when `source = 'github'`, so fixture data never carries made-up GitHub ids. Fixture repositories are unique by `(owner, name)`.
+- `analyses` gains `pr_title`, `changed_files`, `engine_version`, `model_status` and `missing_context`, and `delivery_id` becomes nullable (fixture runs have no webhook delivery).
+- `impact_candidates`: one row per document candidate (unique per analysis and path), holding the deterministic status, reason, evidence, missing context, rule points (not a probability) and rules. The model's assessment and the per-candidate outcome are stored in separate JSONB columns (D-011).
+- `patch_proposals`: one per candidate. It holds the target path, head SHA, base blob SHA, the base document text (for the side-by-side view and for re-validating edits), the patch, the model's rationale, the evidence, the validation status and issues, the validation context (related lines, related terms, known links; bounded by `VALIDATION_CONTEXT_LIMITS` where it is built, and checked with the same schema before it is saved and when it is read for an edit) and the model metadata.
+- `reviewers`: username, display name and scrypt password hash (`scrypt$N$r$p$salt$hash`), plus `disabled_at`.
+- `sessions`: the SHA-256 of a random 32-byte token, the reviewer, and `expires_at` (12 hours) and `revoked_at`.
+- `login_failures`: failed sign-ins per username, for rate limiting. Rows older than a day are pruned on insert.
+- `repository_reviewers`: which reviewer may see which repository.
+- `review_decisions`: one row per proposal (`UNIQUE (proposal_id)`). It records the decision, `edited_patch` (present exactly when the decision is `edited`), and the binding: `repository_id`, `head_sha`, `base_blob_sha` and `patch_sha256` of the approved text, plus `decided_at`. Foreign keys use `ON DELETE RESTRICT`.
+- **App-role grants (control 12):** the app role cannot UPDATE, DELETE or TRUNCATE `review_decisions` (an append-only audit trail), cannot write `reviewers` or `repository_reviewers` (operators manage accounts with the owner role), and cannot TRUNCATE `sessions` or `login_failures`. Migration `0004_review_hardening.sql` adds that it cannot UPDATE or DELETE `patch_proposals` or `impact_candidates` (stored proposals are immutable), and on `sessions` can only INSERT and update `revoked_at`. It also adds an index on `login_failures (attempted_at)` for pruning. All of this is tested (permission-denied checks for each statement).
+- `0003_review.sql` was edited once before it was ever committed: `login_failures.id` changed from `bigserial` to `uuid`, because the app role has no sequence privileges. It had only been applied to the throwaway test database, whose schema was reset.
 
 ## Suggested entities
 

@@ -11,6 +11,7 @@ import {
 import { docPathIssues } from "./policy";
 import {
   htmlFragments,
+  knownLinksIn,
   linkTargets,
   proseIssues,
   resolveLink,
@@ -367,9 +368,9 @@ describe("renderEdits and applyUnifiedDiff", () => {
 
 const sha = gitBlobSha(DOC);
 const check = (
-  over: Partial<PatchCheck> & { edits?: Edit[] } = {},
+  over: Partial<PatchCheck> & { edits?: Edit[]; knownText?: string } = {},
 ): PatchCheck => {
-  const { edits, ...rest } = over;
+  const { edits, knownText = DOC, ...rest } = over;
   const content = rest.doc?.content ?? DOC;
   const patch =
     rest.patch ??
@@ -380,7 +381,7 @@ const check = (
     doc: { path: "docs/setup.md", content },
     relatedLines: [3],
     relatedTerms: ["API_URL"],
-    knownText: DOC,
+    knownLinks: knownLinksIn(knownText),
     ...rest,
     patch,
   };
@@ -432,6 +433,30 @@ describe("content helpers", () => {
       htmlFragments(hostile);
       expect(performance.now() - started).toBeLessThan(2_000);
     }
+  });
+});
+
+describe("blank-rendering characters", () => {
+  const blanks = [
+    0x3164, 0x115f, 0xffa0, 0x2800, 0x034f, 0xfe0f, 0xe0100, 0x180b,
+  ];
+
+  it.each(blanks)("are rejected in added lines (U+%s)", (cp) => {
+    expect(
+      issuesOf(
+        check({
+          edits: [
+            { find: "OLD_URL", replace: `API${String.fromCodePoint(cp)}_URL` },
+          ],
+        }),
+      ),
+    ).toContain("PATCH_UNSAFE_CHARACTERS");
+  });
+
+  it("are rejected in patch target paths", () => {
+    expect(docPathIssues(`docs/a${String.fromCodePoint(0x3164)}.md`)).toEqual([
+      "PATH_INVALID",
+    ]);
   });
 });
 

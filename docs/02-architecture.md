@@ -61,7 +61,7 @@ Keep these concepts independently testable:
 - `src/lib/diff-analyzer/normalize.ts` validates every file path and parses hunks. Unsafe files are rejected by index. Oversized, binary or malformed patches keep the file but drop the hunks (`patchState`). That includes patch text Postgres can't store and hunk numbers outside the safe-integer range, both marked `malformed`. The result is a `PullRequestSnapshot` (Zod) and is not persisted.
 - `src/lib/db/migrate.ts` and `scripts/migrate.ts` form the migration runner (D-007). `migrations/0001_ingestion.sql` creates `repositories`, `pull_requests` and `analyses`.
 - `src/lib/log.ts`: structured JSON logs with a closed set of fields.
-- Not created yet: `review/` and `security/`. (Phase 03 added `llm/`, `patches/` and `assist/`; see below.)
+- Not created yet: `security/`. (Phase 03 added `llm/`, `patches/` and `assist/`, and Phase 04 `review/`; see below.)
 
 ## Implemented so far (Phase 02)
 
@@ -76,3 +76,11 @@ Keep these concepts independently testable:
 - `src/lib/assist/`: `assistImpact` runs the deterministic engine, then asks the model to assess flagged candidates and propose edits, and returns only validated proposals. Also the bounded context builder and evaluation helpers.
 - The model gets no tools and no credentials and never chooses a file (D-011). Details in docs/06.
 - `npm run propose` and `npm run eval:llm` work on fixtures only. Proposals are not persisted and are never applied.
+
+## Implemented so far (Phase 04)
+
+- **Data layer (`src/lib/review/`, server-only):** `session.ts` (login with a generic error and per-username rate limiting, random session tokens stored as SHA-256 hashes, revocation), `password.ts` (scrypt from `node:crypto`), `queries.ts` (dashboard, analysis and review reads, every one joined through the reviewer's repository grant, with JSONB re-validated on read), `decisions.ts` (one final decision per proposal, in a transaction with a row lock, with the approval binding computed on the server), `store.ts` (saves a fixture pipeline run), `api.ts` (route-handler logic), and `auth.ts` (cookie and current-reviewer helpers for pages).
+- **Routes:** `/login`, and in the `(review)` route group `/`, `/analyses/[id]` and `/reviews/[id]`; `GET /api/analyses/[id]`, `GET /api/reviews/[id]` and `PATCH /api/reviews/[id]`. Pages are thin: the session read and data load sit inside a `<Suspense>` boundary (Cache Components), and presentation lives in `src/components/`.
+- **Security headers** for every route come from `next.config.ts` (`src/lib/security-headers.ts`). There is no `proxy.ts`. The plan's nonce CSP was dropped because nonces are incompatible with Cache Components' static shell (D-012), and authorization lives in the data layer, not in a proxy.
+- **Data source:** `npm run analysis:run -- --fixture <name>` runs the real pipeline on a labelled fixture and saves it under a repository marked `source = 'fixture'` (D-012). Live analyses still need doc fetching and a runner (D-009, D-010).
+- **No GitHub writes:** accepting a proposal only records a decision. The documentation PR is Phase 05.

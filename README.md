@@ -63,6 +63,18 @@ npm run test:ollama                            # opt-in tests against a real Oll
 
 These need a local Ollama and `OLLAMA_MODEL` (for example `llama3.2:3b`) in `.env.local`. Without `OLLAMA_MODEL`, `propose` prints a deterministic-only result. Proposals are printed, never applied or written anywhere; see `docs/06-llm-and-patches.md`.
 
+### Reviewing proposals in the browser (Phase 04)
+
+```bash
+npm run db:migrate                                                      # applies 0003_review.sql
+npm run reviewer:add -- --username alice --name "Alice Example"         # prints a generated password once
+npm run analysis:run -- --fixture env-var-renamed                       # runs the pipeline on a fixture and saves it
+npm run reviewer:grant -- --username alice --repo fixture/env-var-renamed
+npm run dev                                                             # sign in at http://localhost:3000/login
+```
+
+`reviewer:add` and `reviewer:grant` use the owner role (`MIGRATION_DATABASE_URL`): the app's own role can't create accounts or grant access. `analysis:run` uses the model when `OLLAMA_MODEL` is set; without it the analysis is deterministic-only and has no patches to review. Fixture analyses are labelled as fixture data everywhere in the UI. Accepting a patch records a decision; nothing is written to GitHub.
+
 ### Sending a test webhook locally
 
 With `GITHUB_ALLOWED_INSTALLATION_IDS=987654` (the fixture's installation), sign `fixtures/webhooks/pull_request.opened.json` with your `GITHUB_WEBHOOK_SECRET` (HMAC-SHA256 of the exact file bytes), and POST it to `/api/webhooks/github` with the headers `x-github-event: pull_request`, `x-github-delivery: <uuid>` and `x-hub-signature-256: sha256=<hex>`. The first delivery returns 202 `queued`; sending it again returns 200 `duplicate`.

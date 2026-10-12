@@ -27,6 +27,18 @@ GitHub does not redeliver failed deliveries automatically. If the endpoint retur
 
 `MIGRATION_DATABASE_URL` and `TEST_MIGRATION_DATABASE_URL` belong to the schema owner and can change the schema. Locally they sit in `.env.local`, which `next dev` also loads. In any deployed environment, the web app must receive only `DATABASE_URL` (the `docusync_app` role); run migrations from a separate job that alone has the owner URL.
 
+## Reviewer accounts (Phase 04)
+
+- `npm run reviewer:add -- --username <name> --name "<display name>"` creates a reviewer and prints a generated password once. `npm run reviewer:grant -- --username <name> --repo <owner>/<repo>` gives them access to one repository. Both use the owner role (`MIGRATION_DATABASE_URL`), because the app role cannot write accounts or grants.
+- To disable a reviewer, set `reviewers.disabled_at` with the owner role. Their sessions stop working on the next request.
+- `npm run analysis:run -- --fixture <name>` saves a labelled fixture analysis for demos and testing.
+- In production the session cookie is `__Host-docusync_session` and requires HTTPS. In development it's `docusync_session` over http.
+- `npm run reviewer:unlock -- --username <name>` clears a reviewer's failed sign-ins after a lockout (owner role).
+- **Before exposing the review UI:**
+  - put a per-IP rate limiter on `/login` in the proxy (the app limits per username and to 4 concurrent sign-ins per process);
+  - serve it over HTTPS only (production sends HSTS);
+  - forward the browser's host and scheme unchanged, because the decision API's origin check compares them.
+
 ## Deployment considerations
 
 - A hosted Next.js deployment cannot reach a developer's localhost Ollama service.

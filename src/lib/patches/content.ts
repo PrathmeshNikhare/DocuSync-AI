@@ -7,7 +7,8 @@
  * keep theirs), format characters (bidi overrides, zero-width) and line/paragraph
  * separators.
  */
-export const UNSAFE_CHAR = /[^\P{Cc}\t\r]|\r(?!$)|[\p{Cf}\p{Zl}\p{Zp}]/u;
+export const UNSAFE_CHAR =
+  /[^\P{Cc}\t\r]|\r(?!$)|[\p{Cf}\p{Zl}\p{Zp}]|[\p{Default_Ignorable_Code_Point}\u{2800}]/u;
 
 // A raw-HTML fragment: "<" then a letter, "/", "!" or "?", up to the next ">"
 // outside quotes. The alternation is decided by its first character (linear).
@@ -130,6 +131,18 @@ export function resolveLink(raw: string): ResolvedLink | undefined {
     return undefined;
   }
 }
+
+/**
+ * External links in `text`, resolved: the set a patch's new links must come from.
+ * Computed once per proposal (doc plus PR diff) and stored for validating edits.
+ */
+export const knownLinksIn = (text: string): Set<string> =>
+  new Set(
+    linkTargets(text)
+      .map(resolveLink)
+      .filter((l) => l?.external)
+      .map((l) => l!.href),
+  );
 
 export const UNSAFE_PROTOCOLS = new Set([
   "javascript:",
