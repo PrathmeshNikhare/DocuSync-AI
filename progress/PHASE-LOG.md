@@ -446,3 +446,14 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
   - **Mutation check:** reverting L-2 is caught by the new tests.
   - **Final gate:** format, lint, typecheck, `npm test` 748, `npm run test:db` 122, build, audit (0) and the Linux CI mirror (748 + 122) pass. One earlier full `npm test` run had an intermittent hang in `llm.test.ts` (handoff, open).
 - Git state: `main`, HEAD `ff5222e`; the rest of Phase 06 is uncommitted.
+
+### 2026-10-13 — Phase 06 — PASS
+- Scope: gate closure, confirmed by the user, after the commit and push.
+- Changes: `STATUS.md` and the handoff mark Phase 06 as PASS. No product code changes since `dacb02e`.
+- Commands run on the final tree before `dacb02e` (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (748), `test:db` (122), `build`, `npm audit --omit=dev` (0), and the Linux CI mirror (748 + 122).
+- GitHub Actions: run 38354197107 on `dacb02e`, all steps green.
+- Acceptance criteria: all Phase 06 exit criteria met (handoff). NOT RUN: a live GitHub App write, a hosted deployment, the `ollama` container in the reference deployment.
+- Open: the documented deployment limitations (docs/10), L4, L6, L8 and Info from `/review` (handoff), the intermittent `llm.test.ts` hang.
+- Decisions: D-014.
+- Git state: `main`; Phase 06 committed as `dacb02e` and pushed; the PASS record is a follow-up commit.
+- Handoff path: `progress/handoffs/phase-06-evaluation-hardening.md`
