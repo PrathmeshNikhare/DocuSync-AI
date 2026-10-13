@@ -25,7 +25,11 @@ export interface CreatePrProps {
 }
 
 const button =
-  "rounded px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-not-allowed disabled:opacity-60";
+  "rounded px-3 py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60";
+
+// Set just before the page refreshes after a PR was created: the refreshed page
+// replaces this panel, so its PR notice takes focus instead (/review L7).
+let focusResultAfterRefresh = false;
 const primary = `${button} bg-neutral-900 text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300`;
 const secondary = `${button} border border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800`;
 
@@ -48,6 +52,31 @@ export function PullRequestLink({
     </a>
   ) : (
     <span>Documentation pull request #{number}</span>
+  );
+}
+
+/** The server-rendered PR notice; takes focus when it replaces the panel. */
+export function PrResultNotice({
+  url,
+  number,
+}: {
+  url: string;
+  number: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focusResultAfterRefresh) {
+      focusResultAfterRefresh = false;
+      ref.current?.focus();
+    }
+  }, []);
+  return (
+    <div ref={ref} tabIndex={-1} className="outline-none">
+      <Notice tone="success" title="Documentation pull request">
+        <PullRequestLink url={url} number={number} />. Review it on GitHub; it
+        is never merged automatically.
+      </Notice>
+    </div>
   );
 }
 
@@ -106,6 +135,7 @@ export function CreatePrPanel(p: CreatePrProps) {
       ) {
         setOpened({ url: pr.url, number: pr.number });
         setConfirming(false);
+        focusResultAfterRefresh = true;
         router.refresh();
         return;
       }
@@ -208,8 +238,12 @@ export function CreatePrPanel(p: CreatePrProps) {
               ref={confirmButton}
               type="button"
               className={primary}
-              disabled={pending}
-              onClick={() => void create()}
+              // aria-disabled, not disabled: a disabled button drops focus to
+              // the page body while the request runs (/review L7).
+              aria-disabled={pending}
+              onClick={() => {
+                if (!pending) void create();
+              }}
             >
               {pending ? "Creating…" : "Create pull request"}
             </button>

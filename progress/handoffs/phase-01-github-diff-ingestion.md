@@ -129,3 +129,7 @@ Phase 01 is one commit on top of `2f60dcc`. To undo it without rewriting history
 - Done: `/review` and `/security-check` (selected findings fixed, the rest deferred above), and the local commit.
 - Decide whether Phase 02 needs the snapshot persisted or a runner for queued analyses (this revisits D-009).
 - Phase 02 is expected to need Contents read permission to fetch documentation files.
+
+## Correction (2026-10-12, during Phase 06)
+
+This handoff says GitHub CI was not run because there was no remote. That was wrong: `origin` (github.com/PrathmeshNikhare/DocuSync-AI) existed, and GitHub Actions ran on this phase's commit. The run failed at `npm ci`: the lockfile, generated on Windows, lacked the optional `@emnapi` packages npm on Linux expects, so no check ran in CI. Fixed in Phase 06 by commit `ff5222e`, which also fixed a build failure hidden behind the install step. Local checks were unaffected.

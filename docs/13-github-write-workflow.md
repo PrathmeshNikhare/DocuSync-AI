@@ -120,7 +120,7 @@ The webhook still only enqueues (D-009). There is no background runner.
 
 ## Approval: what "explicit and fresh" means
 
-- **Who and what:** a reviewer with a grant on the repository opens a decided review (accepted or edited), presses **Create documentation PR…** and confirms a dialog. The dialog shows:
+- **Who and what:** a reviewer with a grant on the repository opens a decided review (accepted or edited), presses **Create documentation PR…** and confirms an inline confirmation (not a modal dialog). It shows:
   - the repository, the source PR and its head branch;
   - the head SHA, the target file and its blob;
   - **the approved diff itself**, rendered as safe text as in the review page;
@@ -352,3 +352,12 @@ To stop writes and contain damage:
 - **Moving base branch:** the stacked base is the source head branch. If it moves after the checks, the docs PR is computed against the recorded head. GitHub shows the real diff, and a human reviews before merging.
 - **Actions minutes:** pushes and PRs made with an App token run the target repository's workflows. That costs Actions minutes but adds no new execution privilege.
 - **Not run live:** no live GitHub App here, so writes are verified against mocks only.
+
+## Phase 06 changes
+
+- **Early answers:** an existing output that is locked, terminal, at its attempt limit or retried too soon is answered from its row before the approval is re-checked (security-check L-3).
+- **Per-reviewer limits:** 10 create-PR requests per minute.
+- **Resume re-checks the binding:** a resumed output's stored `head_sha`, `base_blob_sha` and `patch_sha256` must equal the approval's (`APPROVAL_TAMPERED`, `/review` L3).
+- **Logging:** each attempt logs the step it reached (L6).
+- **Hidden characters:** invisible and bidi characters in PR text appear as `[U+XXXX]` (L-2).
+- **Behind a TLS proxy:** set `APP_ORIGIN` (docs/10).

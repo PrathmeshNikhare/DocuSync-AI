@@ -152,3 +152,29 @@ describe("title and commit message", () => {
     expect(prTitle(base)).toBe("docs: update docs/config.md for #5");
   });
 });
+
+describe("hidden characters (security-check L-2)", () => {
+  it("are shown as markers in the body, title and commit message", () => {
+    const rlo = "\u202e";
+    const c = {
+      ...base,
+      headRef: `feature/${rlo}txt.exe`,
+      targetPath: `docs/a${rlo}b.md`,
+      rationale: `Renamed ${rlo}the variable.`,
+      evidence: [
+        {
+          signal: "explicit_reference" as const,
+          sourcePath: "src/a.ts",
+          excerpt: `x ${rlo} y\u200b`,
+        },
+      ],
+    };
+    for (const text of [prBody(c), prTitle(c), commitMessage(c)]) {
+      expect(text).not.toContain(rlo);
+      expect(text).not.toContain("\u200b");
+      expect(text).toContain("[U+202E]");
+    }
+    // Our own zero-width joiner after @ and # stays, and is not marked.
+    expect(prTitle({ ...c, targetPath: "docs/@x.md" })).toContain("@\u200dx");
+  });
+});

@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-yaml-key-renamed",
+  "category": "config_key",
+  "description": "The YAML key timeoutMs is renamed to requestTimeoutMs; the configuration doc still names timeoutMs.",
+  "files": [
+    {
+      "filename": "config/default.yaml",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,3 +1,3 @@\n server:\n   port: 3000\n-  timeoutMs: 5000\n+  requestTimeoutMs: 5000"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/configuration.md": "# Configuration\n\n`server.timeoutMs` (default 5000) limits each request.\n"
+  },
+  "labels": {
+    "affected": ["docs/configuration.md"]
+  }
+}

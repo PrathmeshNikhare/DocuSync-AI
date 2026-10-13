@@ -54,3 +54,13 @@ The primary review path should be understandable without reading project documen
   - Confirming sends the head commit and patch hash back.
   - Success shows a link to the PR, only if it is a github.com pull request URL, opened with `noopener noreferrer`. Failures show the server's message and code.
   - Fixture data, disabled writes and analyses without branch names each get an explanation instead of the button. A created PR is shown as a link on every later visit.
+
+## Phase 06 changes
+
+- **Create-PR focus:**
+  - While pending, the confirm button stays focused: it uses `aria-disabled`, and a second press does nothing.
+  - After a failure, focus stays on it.
+  - After success, the refreshed page's PR notice takes focus once.
+  - The confirmation is an inline section, not a modal dialog.
+- **Partial analyses:** an analysis whose docs could not all be read shows "Partial analysis: some documentation could not be read" above the missing-context list.
+- **Screenshots:** real captures of the local production build with fixture data are in `docs/screenshots/` (`npm run screenshots`; see docs/11).

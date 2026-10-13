@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-internal-helper-renamed",
+  "category": "no_impact",
+  "description": "A non-exported helper is renamed; the architecture doc describes the module but not the helper.",
+  "files": [
+    {
+      "filename": "src/store/cache.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -3,3 +3,3 @@\n-function computeKey(id: string) {\n+function cacheKeyFor(id: string) {\n   return `item:${id}`;\n }"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/architecture.md": "# Architecture\n\nThe store keeps a small in-memory cache in front of the database.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

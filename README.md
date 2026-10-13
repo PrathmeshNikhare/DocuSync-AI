@@ -86,9 +86,61 @@ npm run analysis:run -- --live owner/repo#123 --installation 987654      # same-
 
 After a reviewer accepts or edits a proposal, **Create documentation PR…** opens one PR with that change against the source PR's head branch, after re-checking the approval and GitHub's current state (docs/13). It is never merged automatically. This path has been tested against a fetch-level fake of GitHub only, not a live App.
 
+### Evaluation, deployment and demo (Phase 06)
+
+```bash
+npm run eval:impact        # deterministic precision/recall per dataset -> docs/evaluation/impact-baseline.md
+npm run eval:latency       # engine latency and failure counts -> docs/evaluation/impact-latency.md
+OLLAMA_MODEL=llama3.2:3b npm run eval:llm   # model-assisted comparison -> docs/evaluation/llm-assisted.md
+npm run db:check-grants    # verify the app role's database limits (run after every restore)
+npm run screenshots        # real UI screenshots with Playwright (see docs/11)
+docker compose -f deploy/compose.yml up -d --build --wait   # reference private-network deployment (docs/10)
+```
+
+**Changing dependencies on Windows:** `npm install` on Windows drops Linux-only optional packages from `package-lock.json`, which makes `npm ci` fail in CI. After changing dependencies, regenerate the lockfile on Linux:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app node:24 npm install --package-lock-only
+```
+
 ### Sending a test webhook locally
 
 With `GITHUB_ALLOWED_INSTALLATION_IDS=987654` (the fixture's installation), sign `fixtures/webhooks/pull_request.opened.json` with your `GITHUB_WEBHOOK_SECRET` (HMAC-SHA256 of the exact file bytes), and POST it to `/api/webhooks/github` with the headers `x-github-event: pull_request`, `x-github-delivery: <uuid>` and `x-hub-signature-256: sha256=<hex>`. The first delivery returns 202 `queued`; sending it again returns 200 `duplicate`.
+
+## Measured results and known limitations
+
+Measured on 2026-10-12. Every number comes from a command in this repository, on small synthetic fixtures. **These are not estimates of real-world performance.**
+
+| Measure | Result | Source |
+|---|---|---|
+| Impact flagging, all 35 scenarios (deterministic) | precision 90.5% (19/21), recall 82.6% (19/23) | `docs/evaluation/impact-baseline.md` |
+| Impact flagging, held-out `impact-v3` (14 scenarios, labelled before any run) | precision 87.5% (7/8), recall 70.0% (7/10) | same; label hash in `progress/PHASE-LOG.md` |
+| Model-assisted flagging (`llama3.2:3b`) | identical to deterministic: the model demoted nothing | `docs/evaluation/llm-assisted.md` |
+| Patches (`llama3.2:3b`) | 20 requested, 14 passed validation, 6 rejected; 41 model calls, median 2.9 s, p95 7.8 s | same |
+| Engine latency | median 0.06 ms, p95 0.18 ms; 0 failures in 700 runs (one laptop) | `docs/evaluation/impact-latency.md` |
+| Tests | GitHub Actions green on `ff5222e`. Later Phase 06 changes passed locally and in a Linux container mirror of the CI pipeline; GitHub Actions runs them once they are pushed | `.github/workflows/ci.yml` |
+
+**Known limitations:**
+- **No runner:** webhooks only enqueue (D-009). Live analyses come from the CLI.
+- **GitHub writes never run live.** They are tested against a fake GitHub only. Before enabling them, set up the rulesets in docs/10.
+- **Deterministic blind spots** (from the `known_` scenarios and the `impact-v3` misses):
+  - behaviour-only changes;
+  - CLI option names;
+  - Dockerfiles and other unparsed languages;
+  - newly added endpoints that docs don't mention yet;
+  - generic words that collide with exported names.
+- **The model can only demote flagged docs.** Its prose can be wrong even when the patch validates (docs/11), so human review is required.
+- **Single-instance assumptions:** the decision and create-PR rate limits are in-process. A per-IP limiter at the proxy is required before exposure.
+- **Accepted risks:** the trust in the app database role (D-013) and the inline-script CSP (D-012).
+- **Reference deployment limitations** (docs/10):
+  - migrations and operator commands run as the Postgres superuser;
+  - the app doesn't assert its database role;
+  - Ollama has no authentication on the private network;
+  - images and Actions are tag-pinned, not digest- or SHA-pinned;
+  - no compose hardening;
+  - the reviewer UI must stay on a private network: no per-IP limiter is shipped.
+- **Not built:** MFA, signed decisions and decision expiry.
+- **Deployment:** the reference deployment was verified locally only, not on a hosted environment.
 
 ## Harness workflow
 

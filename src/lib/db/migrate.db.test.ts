@@ -26,6 +26,7 @@ describe("migrate", () => {
         "0003_review.sql",
         "0004_review_hardening.sql",
         "0005_github_writes.sql",
+        "0006_partial_docs.sql",
       ]);
       expect(await migrate(c, MIGRATIONS)).toEqual([]);
       const { rows } = await c.query<{ name: string }>(
@@ -37,6 +38,7 @@ describe("migrate", () => {
         "0003_review.sql",
         "0004_review_hardening.sql",
         "0005_github_writes.sql",
+        "0006_partial_docs.sql",
       ]);
     });
   });

@@ -187,8 +187,8 @@ export function renderLlmReport(run: LlmEvalRun): string {
     "",
     "## Limits",
     "",
-    "- One run on 21 small synthetic scenarios, with a few flagged docs each. The differences are anecdotal and are not an estimate of real-world performance.",
-    "- Labels (impact and patch) and prompts have the same author. Patch labels were written before any model output was read. The prompts were not changed after reading results, but the assist policy was, on these same fixtures (docs/08), so these numbers are not a held-out result.",
+    `- One run on ${run.scenarios.length} small synthetic scenarios, with a few flagged docs each. The differences are anecdotal and are not an estimate of real-world performance.`,
+    "- Labels (impact and patch) and prompts have the same author. Patch labels were written before any model output was read. The prompts were not changed after reading results, but the assist policy was, on `impact-v1` and `impact-v2` (docs/08), so their numbers are not a held-out result. `impact-v3` was not used for tuning, and its patches have no patch labels (`unlabelled`).",
     "- `label_pass` checks a few required and forbidden strings, not the quality of the prose. Every proposal still needs human review.",
     "",
   ].join("\n");

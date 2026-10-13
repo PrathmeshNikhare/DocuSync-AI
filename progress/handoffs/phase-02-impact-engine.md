@@ -101,3 +101,7 @@ Phase 02 is one commit on top of `55989bf`. To undo it without rewriting history
 - Phase 02 is PASS and committed (done).
 - Before Phase 03 can use the engine on real PRs, decide on live doc fetching (the Contents permission) and on persistence or a runner (D-009, D-010). Phase 03 (LLM patches) can still be built and evaluated on these fixtures without them.
 - Phase 03 should compare LLM-assisted mode with this deterministic baseline on the same dataset (docs/05).
+
+## Correction (2026-10-12, during Phase 06)
+
+This handoff says GitHub CI was not run because there was no remote. That was wrong: `origin` (github.com/PrathmeshNikhare/DocuSync-AI) existed, and GitHub Actions ran on this phase's commit. The run failed at `npm ci`: the lockfile, generated on Windows, lacked the optional `@emnapi` packages npm on Linux expects, so no check ran in CI. Fixed in Phase 06 by commit `ff5222e`, which also fixed a build failure hidden behind the install step. Local checks were unaffected.

@@ -4,11 +4,20 @@ import type { Pool } from "pg";
 import { logEvent } from "@/lib/log";
 import { readBodyLimited } from "@/lib/read-body";
 import type { ApiError } from "@/lib/schemas";
-import { writesEnabled } from "@/lib/env";
+import { getAppOrigin, writesEnabled } from "@/lib/env";
 import { decide, type DecideResult } from "./decisions";
 import { createDocsPr, RETRYABLE, type PublishDeps } from "./publish";
+import { createRateLimiter } from "./rate-limit";
 import { getAnalysis, getReview } from "./queries";
 import type { Reviewer } from "./session";
+
+/**
+ * Per-reviewer request limits (Phase 06). Decisions re-run patch validation and
+ * create-PR calls reach GitHub, so a signed-in reviewer (or a stolen cookie)
+ * can't loop either. Sign-in has its own limits (session.ts).
+ */
+export const decisionLimits = createRateLimiter(60, 60_000);
+export const createPrLimits = createRateLimiter(10, 60_000);
 
 /** Room for a 100,000-character edited patch, JSON-escaped. */
 export const MAX_DECISION_BODY_BYTES = 256 * 1024;
@@ -37,12 +46,32 @@ function error(
 /**
  * Cookie-authenticated writes must come from this site. SameSite=Strict already
  * stops cross-site cookies; this also refuses requests whose Origin says otherwise.
+ * Behind a TLS proxy the app sees http://, so `APP_ORIGIN` names the public origin.
+ * Returns "config_invalid" when APP_ORIGIN is set but unusable, so the caller can
+ * say so instead of answering every write with a generic 500.
  */
-function sameOrigin(request: Request): boolean {
+function originCheck(request: Request): "ok" | "refused" | "config_invalid" {
+  let expected: string | undefined;
+  try {
+    expected = getAppOrigin();
+  } catch {
+    return "config_invalid";
+  }
   const origin = request.headers.get("origin");
-  if (origin) return origin === new URL(request.url).origin;
-  return request.headers.get("sec-fetch-site") === "same-origin";
+  if (origin)
+    return origin === (expected ?? new URL(request.url).origin)
+      ? "ok"
+      : "refused";
+  return request.headers.get("sec-fetch-site") === "same-origin"
+    ? "ok"
+    : "refused";
 }
+
+const CONFIG_INVALID: [number, string, string] = [
+  503,
+  "CONFIG_INVALID",
+  "The server's APP_ORIGIN setting is invalid; an operator must fix it",
+];
 
 /**
  * Any unexpected failure (database down, corrupt stored data) becomes a coded 500
@@ -158,10 +187,18 @@ async function decisionInner(
     logEvent("api_review_decision", { requestId, outcome: "rejected", code });
     return error(status, code, message, requestId, extra);
   };
-  if (!sameOrigin(request))
+  const decisionOrigin = originCheck(request);
+  if (decisionOrigin === "config_invalid") return fail(...CONFIG_INVALID);
+  if (decisionOrigin === "refused")
     return fail(403, "FORBIDDEN_ORIGIN", "Cross-site request refused");
   const reviewer = await deps.reviewerFor(request);
   if (!reviewer) return fail(401, "UNAUTHENTICATED", "Sign in to continue");
+  if (!decisionLimits.allow(reviewer.id))
+    return fail(
+      429,
+      "RATE_LIMITED",
+      "Too many requests; wait a minute and try again",
+    );
   if (
     !request.headers
       .get("content-type")
@@ -272,11 +309,13 @@ async function createPrInner(
     code: string,
     message: string,
     outputId?: string,
+    step?: string,
   ) => {
     logEvent("api_create_pr", {
       requestId,
       reviewerId: who.reviewerId,
       outputId,
+      step,
       outcome: "rejected",
       code,
     });
@@ -285,11 +324,19 @@ async function createPrInner(
   // Checked first, and again inside the publish flow and the writer.
   if (!writesEnabled())
     return fail(503, "WRITES_DISABLED", PUBLISH_ERRORS.WRITES_DISABLED![1]);
-  if (!sameOrigin(request))
+  const prOrigin = originCheck(request);
+  if (prOrigin === "config_invalid") return fail(...CONFIG_INVALID);
+  if (prOrigin === "refused")
     return fail(403, "FORBIDDEN_ORIGIN", "Cross-site request refused");
   const reviewer = await deps.reviewerFor(request);
   if (!reviewer) return fail(401, "UNAUTHENTICATED", "Sign in to continue");
   who.reviewerId = reviewer.id;
+  if (!createPrLimits.allow(reviewer.id))
+    return fail(
+      429,
+      "RATE_LIMITED",
+      "Too many requests; wait a minute and try again",
+    );
   if (
     !request.headers
       .get("content-type")
@@ -332,12 +379,14 @@ async function createPrInner(
       result.code === "INVALID_INPUT" ? "VALIDATION_ERROR" : result.code,
       message,
       result.outputId,
+      result.ok === false ? result.step : undefined,
     );
   }
   logEvent("api_create_pr", {
     requestId,
     reviewerId: reviewer.id,
     outputId: result.outputId,
+    step: "pr_opened",
     outcome: result.created ? "pr_opened" : "pr_exists",
   });
   return Response.json(

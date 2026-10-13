@@ -8,7 +8,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CreatePrPanel, type CreatePrProps } from "./create-pr-panel";
+import {
+  CreatePrPanel,
+  PrResultNotice,
+  type CreatePrProps,
+} from "./create-pr-panel";
 import { DecisionPanel } from "./decision-panel";
 import { LoginForm } from "./login-form";
 
@@ -288,5 +292,94 @@ describe("CreatePrPanel", () => {
       screen.getByRole("button", { name: "Create documentation PR…" }),
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("CreatePrPanel focus (review L7)", () => {
+  const props: CreatePrProps = {
+    proposalId: "p1",
+    repository: { owner: "acme", name: "widgets" },
+    prNumber: 5,
+    headRef: "feature/x",
+    headSha: "a".repeat(40),
+    targetPath: "docs/a.md",
+    baseBlobSha: "b".repeat(40),
+    baseContent: "old\n",
+    approvedPatch: PATCH,
+    patchSha256: "c".repeat(64),
+    lastError: null,
+  };
+
+  it("keeps focus on the confirm button while pending and after an error, and sends once", async () => {
+    let resolve!: (r: Response) => void;
+    fetchMock.mockReturnValue(new Promise<Response>((r) => (resolve = r)));
+    render(<CreatePrPanel {...props} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create documentation PR…" }),
+    );
+    const confirm = screen.getByRole("button", { name: "Create pull request" });
+    fireEvent.click(confirm);
+    const busy = screen.getByRole("button", { name: "Creating…" });
+    expect(busy.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(busy);
+    fireEvent.click(busy);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolve(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "STALE_HEAD",
+              message: "new commits",
+              requestId: "r",
+            },
+          }),
+          { status: 409, headers: { "content-type": "application/json" } },
+        ),
+      );
+    });
+    expect(await screen.findByText("STALE_HEAD")).toBeTruthy();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Create pull request" }),
+    );
+  });
+
+  it("moves focus to the refreshed PR notice after a PR is created", async () => {
+    fetchMock.mockReturnValue(
+      respond(201, {
+        pullRequest: {
+          number: 9,
+          url: "https://github.com/acme/widgets/pull/9",
+          created: true,
+        },
+      }),
+    );
+    render(<CreatePrPanel {...props} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create documentation PR…" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create pull request" }),
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    // The refresh replaces the panel with the server-rendered notice.
+    cleanup();
+    render(
+      <PrResultNotice
+        url="https://github.com/acme/widgets/pull/9"
+        number={9}
+      />,
+    );
+    const link = screen.getByRole("link", { name: /pull request #9/ });
+    expect(document.activeElement).toBe(link.closest("div[tabindex]"));
+    // Only once: a later visit doesn't steal focus.
+    cleanup();
+    render(
+      <PrResultNotice
+        url="https://github.com/acme/widgets/pull/9"
+        number={9}
+      />,
+    );
+    expect(document.activeElement).toBe(document.body);
   });
 });

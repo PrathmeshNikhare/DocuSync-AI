@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-cli-flag-renamed",
+  "category": "cli_flag",
+  "description": "The CLI option --out is renamed to --output; the CLI guide still documents --out.",
+  "files": [
+    {
+      "filename": "src/cli.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,4 +1,4 @@\n program\n   .name(\"exporter\")\n-  .option(\"--out <dir>\", \"output directory\")\n+  .option(\"--output <dir>\", \"output directory\")\n   .parse();"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/cli.md": "# CLI\n\n```\nexporter --out ./dist\n```\n\n`--out` sets the output directory.\n"
+  },
+  "labels": {
+    "affected": ["docs/cli.md"]
+  }
+}

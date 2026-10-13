@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-route-added",
+  "category": "api_route",
+  "description": "A new route GET /api/status is added; the API doc lists every endpoint, so it needs the new one.",
+  "files": [
+    {
+      "filename": "src/routes/status.ts",
+      "status": "added",
+      "additions": 3,
+      "deletions": 0,
+      "patch": "@@ -1,0 +1,3 @@\n+import { router } from \"./router\";\n+\n+router.get(\"/api/status\", (req, res) => res.json({ ok: true }));"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/api.md": "# API\n\nEvery endpoint:\n\n- `GET /api/health`\n- `GET /api/reports`\n"
+  },
+  "labels": {
+    "affected": ["docs/api.md"]
+  }
+}

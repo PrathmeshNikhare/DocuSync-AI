@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-dockerfile-port",
+  "category": "known_false_negative",
+  "description": "The Dockerfile exposes port 8080 instead of 3000; the deployment doc says 3000. Dockerfiles are not parsed, so a miss is expected.",
+  "files": [
+    {
+      "filename": "Dockerfile",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -4,4 +4,4 @@\n COPY . .\n RUN npm ci\n-EXPOSE 3000\n+EXPOSE 8080\n CMD [\"npm\", \"start\"]"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/deployment.md": "# Deployment\n\nThe container listens on port 3000.\n"
+  },
+  "labels": {
+    "affected": ["docs/deployment.md"]
+  }
+}

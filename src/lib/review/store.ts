@@ -12,11 +12,16 @@ export type AnalysisSource =
   | {
       kind: "github";
       githubRepoId: number;
+      /** GitHub's canonical owner and name; default to the snapshot's ref. */
+      owner?: string;
+      name?: string;
       installationId: number;
       headRef: string;
       baseRef: string;
       /** Notes from fetching the docs (skipped files, a truncated tree). */
       notes: readonly string[];
+      /** Some documentation could not be read: the analysis is partial. */
+      docsPartial?: boolean;
     };
 
 /**
@@ -74,8 +79,8 @@ export async function saveAnalysis(
                  IS DISTINCT FROM (EXCLUDED.owner, EXCLUDED.name, EXCLUDED.installation_id)`,
         [
           source.githubRepoId,
-          snapshot.ref.owner,
-          snapshot.ref.repo,
+          source.owner ?? snapshot.ref.owner,
+          source.name ?? snapshot.ref.repo,
           source.installationId,
         ],
       );
@@ -125,8 +130,9 @@ export async function saveAnalysis(
     const analysisId = (
       await client.query<{ id: string }>(
         `INSERT INTO analyses (pull_request_id, idempotency_key, status, started_at, completed_at,
-                               pr_title, changed_files, engine_version, model_status, missing_context)
-         VALUES ($1, $2, 'completed', now(), now(), $3, $4, $5, $6, $7)
+                               pr_title, changed_files, engine_version, model_status, missing_context,
+                               docs_partial)
+         VALUES ($1, $2, 'completed', now(), now(), $3, $4, $5, $6, $7, $8)
          RETURNING id`,
         [
           prId,
@@ -142,6 +148,7 @@ export async function saveAnalysis(
             ...(source.kind === "github" ? source.notes : []),
             ...result.deterministic.missingContext,
           ]),
+          source.kind === "github" && source.docsPartial === true,
         ],
       )
     ).rows[0]!.id;

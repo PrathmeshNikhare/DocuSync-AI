@@ -1,0 +1,121 @@
+# Reference private-network deployment (docs/10, D-014). Only the TLS proxy is
+# published: webhooks on 443, the reviewer UI on a private-only 8444. Postgres
+# and Ollama sit on an internal network with no route out and no published
+# ports; the app reaches them by service name.
+#
+#   cp deploy/app.env.example deploy/app.env          # and fill in real values
+#   cp deploy/migrate.env.example deploy/migrate.env
+#   cp deploy/postgres.env.example deploy/postgres.env
+#   docker compose -f deploy/compose.yml up -d --build --wait
+#   docker compose -f deploy/compose.yml --profile migrate run --rm --build migrate
+#   # optional model: pull once with egress, then run Ollama with no route out
+#   OLLAMA_PULL_MODEL=llama3.2:3b docker compose -f deploy/compose.yml --profile model-pull run --rm ollama-pull
+#   docker compose -f deploy/compose.yml --profile model up -d ollama
+name: docusync
+
+services:
+  proxy:
+    image: caddy:2.10.0
+    # Reference: loopback only. On a real host publish 443 (and 80 for ACME) for
+    # the webhook-only public site, and publish 8444 (the reviewer UI) only on a
+    # private interface, VPN or SSH tunnel, never to the internet.
+    ports:
+      - "127.0.0.1:8443:443"
+      - "127.0.0.1:8444:8444"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    networks: [edge]
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ..
+      target: runtime
+    # DATABASE_URL (app role), GitHub and Ollama settings; never the owner URL.
+    env_file: app.env
+    expose: ["3000"]
+    networks: [edge, private]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # One-shot: migrations and the grants check, with the owner URL only here.
+  migrate:
+    build:
+      context: ..
+      target: build
+    env_file: migrate.env
+    command: ["sh", "-c", "npm run db:migrate && npm run db:check-grants"]
+    networks: [private]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["migrate"]
+
+  postgres:
+    image: postgres:16-alpine
+    env_file: postgres.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb/01-app-role.sql:/docker-entrypoint-initdb.d/01-app-role.sql:ro
+      - ./initdb/02-app-password.sh:/docker-entrypoint-initdb.d/02-app-password.sh:ro
+    networks: [private]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docusync -d docusync"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # Prompts carry repository content: Ollama is never published and, while it
+  # serves, has no route out (internal network only).
+  ollama:
+    image: ollama/ollama:0.40.3
+    volumes:
+      - ollama:/root/.ollama
+    networks: [private]
+    profiles: ["model"]
+    restart: unless-stopped
+
+  # One-shot model download onto the shared volume. The only service with
+  # internet egress besides the app; it never sees prompts. Stop `ollama` first.
+  ollama-pull:
+    image: ollama/ollama:0.40.3
+    volumes:
+      - ollama:/root/.ollama
+    networks: [model-egress]
+    environment:
+      OLLAMA_PULL_MODEL: ${OLLAMA_PULL_MODEL:-llama3.2:3b}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      [
+        'ollama serve & sleep 5 && ollama pull "$$OLLAMA_PULL_MODEL"; status=$$?; kill $$!; exit $$status',
+      ]
+    profiles: ["model-pull"]
+
+networks:
+  edge: {}
+  private:
+    internal: true
+  model-egress: {}
+
+volumes:
+  caddy_data:
+  pgdata:
+  ollama:

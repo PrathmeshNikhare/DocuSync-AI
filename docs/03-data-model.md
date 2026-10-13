@@ -108,6 +108,9 @@ Use PostgreSQL with `pg` and checked-in SQL migrations. Do not use Prisma.
   - `updated_at`.
 - Checks: a PR number and URL exist exactly when `step = 'pr_opened'`; `commit_sha` is set from `committed` on; an opened row has no error code.
 
+### analyses (Phase 06 addition, migration 0006)
+- `docs_partial` boolean, default false: a live analysis where some documentation could not be read (a truncated tree, or skipped, unreadable or mismatched docs). The UI shows it as a partial analysis. The reasons are in `missing_context`.
+
 ### github_output_attempts (Phase 05)
 - `output_id`, `reviewer_id`, `attempted_at`: who pressed "Create documentation PR" each time. Append-only for the app role.
 

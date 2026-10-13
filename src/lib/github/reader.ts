@@ -24,7 +24,12 @@ export const livePullSchema = z.object({
   }),
   base: z.object({
     ref: z.string().min(1).max(255),
-    repo: z.object({ id: z.int().min(1) }),
+    repo: z.object({
+      id: z.int().min(1),
+      // GitHub's canonical names, which the live path stores (not CLI input).
+      name: z.string().optional(),
+      owner: z.object({ login: z.string() }).optional(),
+    }),
   }),
 });
 

@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiErrorSchema } from "@/lib/schemas";
 import {
+  decisionLimits,
   handleDecision,
   handleGetAnalysis,
   handleGetReview,
@@ -11,6 +12,7 @@ import {
 let logSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+  decisionLimits.reset();
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -107,5 +109,96 @@ describe("same-origin check", () => {
     ],
   ])("refuses %s", async (_label, headers) => {
     expect((await patch(headers)).status).toBe(403);
+  });
+});
+
+describe("per-reviewer decision limit (Phase 06)", () => {
+  it("refuses a 61st decision request within a minute with 429", async () => {
+    const deps = { pool: brokenPool, reviewerFor: async () => reviewer };
+    const send = () =>
+      handleDecision(
+        new Request(`${ORIGIN}/api/reviews/${ID}`, {
+          method: "PATCH",
+          headers: { origin: ORIGIN, "content-type": "text/plain" },
+          body: "x",
+        }),
+        ID,
+        deps,
+      );
+    for (let i = 0; i < 60; i++) expect((await send()).status).toBe(415);
+    const r = await send();
+    expect(r.status).toBe(429);
+    expect(apiErrorSchema.parse(await r.json()).error.code).toBe(
+      "RATE_LIMITED",
+    );
+  });
+});
+
+describe("same-origin check behind a TLS proxy (APP_ORIGIN)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  const send = (origin: string) =>
+    handleDecision(
+      // What the app sees behind the proxy: plain http, internal host.
+      new Request("http://app:3000/api/reviews/x", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", origin },
+        body: "{}",
+      }),
+      ID,
+      { pool: brokenPool, reviewerFor: async () => undefined },
+    );
+
+  it("compares the browser's Origin with APP_ORIGIN when it is set", async () => {
+    vi.stubEnv("APP_ORIGIN", "https://docs.example.com");
+    expect((await send("https://docs.example.com")).status).toBe(401);
+    expect((await send("http://app:3000")).status).toBe(403);
+    expect((await send("https://evil.example")).status).toBe(403);
+  });
+
+  it("refuses the public origin when APP_ORIGIN is not set (the failure it fixes)", async () => {
+    expect((await send("https://docs.example.com")).status).toBe(403);
+  });
+});
+
+describe("an invalid APP_ORIGIN (review L2)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("answers 503 CONFIG_INVALID on writes, logging the code but not the value", async () => {
+    vi.stubEnv("APP_ORIGIN", "https://docs.example.com/app");
+    const res = await handleDecision(
+      new Request(`${ORIGIN}/api/reviews/x`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        body: "{}",
+      }),
+      ID,
+      { pool: brokenPool, reviewerFor: async () => reviewer },
+    );
+    expect(res.status).toBe(503);
+    expect(apiErrorSchema.parse(await res.json()).error.code).toBe(
+      "CONFIG_INVALID",
+    );
+    const logged = logSpy.mock.calls
+      .map((c: unknown[]) => String(c[0]))
+      .join("\n");
+    expect(logged).toContain('"code":"CONFIG_INVALID"');
+    expect(logged).not.toContain("docs.example.com");
+  });
+
+  it("accepts a default port in APP_ORIGIN", async () => {
+    vi.stubEnv("APP_ORIGIN", "https://docs.example.com:443");
+    const res = await handleDecision(
+      new Request("http://app:3000/api/reviews/x", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://docs.example.com",
+        },
+        body: "{}",
+      }),
+      ID,
+      { pool: brokenPool, reviewerFor: async () => undefined },
+    );
+    expect(res.status).toBe(401);
   });
 });

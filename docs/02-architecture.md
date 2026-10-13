@@ -12,6 +12,44 @@
 - PostgreSQL: review sessions, candidates, proposals, decisions and idempotency records.
 - Worker interface: long-running analysis can be moved out of request lifecycle; don't assume serverless handlers can run indefinitely.
 
+## As built (Phase 06)
+
+What exists and runs today. Dashed edges are not built.
+
+```mermaid
+flowchart LR
+  GH[(GitHub)]
+  subgraph App["Next.js app (one process)"]
+    WH["POST /api/webhooks/github<br/>verify signature, enqueue only"]
+    UI["Review UI and JSON API<br/>sessions, grants, decisions"]
+    PR["POST /api/reviews/:id/create-pr<br/>re-checks, then writer"]
+  end
+  CLI["npm run analysis:run<br/>--fixture or --live"]
+  subgraph Lib["src/lib (framework-free core)"]
+    ENG["impact engine<br/>deterministic evidence"]
+    LLM["LLM provider<br/>Ollama, schema-checked"]
+    VAL["patch validator"]
+    WR["GitHub writer<br/>two-layer allowlist"]
+  end
+  DB[(PostgreSQL)]
+  OL["Ollama<br/>private network only"]
+  RUN["background runner"]
+
+  GH -- webhook --> WH --> DB
+  CLI -- "read PR, docs at head" --> GH
+  CLI --> ENG --> LLM --> OL
+  LLM --> VAL
+  CLI --> DB
+  UI <--> DB
+  PR --> DB
+  PR --> WR -- "branch, commit, PR" --> GH
+  DB -.queued analyses.-> RUN
+```
+
+- **Webhooks only enqueue (D-009).** There is no runner, so live analyses come from the CLI (`analysis:run --live`).
+- **Writes are off by default** and go only through the writer (docs/13).
+- **The reference deployment** (docs/10) puts Postgres and Ollama on an internal network behind a TLS proxy.
+
 ## Data flow
 
 1. Verify webhook signature using raw request body.

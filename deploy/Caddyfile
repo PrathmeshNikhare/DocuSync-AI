@@ -1,0 +1,28 @@
+# Reference TLS proxy (docs/10). Two sites with different exposure:
+#
+# 1. PUBLIC (port 443): GitHub webhooks only. Every other path, including
+#    /login and the API, answers 404 here (security-check M-A). Webhooks are
+#    authenticated by their HMAC signature and size-limited by the app.
+# 2. REVIEWER UI (port 8444): sign-in, review and decisions. NEVER publish this
+#    port to the internet; reach it over a VPN, a private interface or an SSH
+#    tunnel. If it must be exposed, put a per-IP rate limiter in front of it
+#    first (the stock Caddy image has none).
+#
+# `tls internal` issues local certificates for testing. On a real host replace
+# `localhost` with the domains and drop `tls internal`. Caddy passes Host and
+# Origin through unchanged and replaces client-sent X-Forwarded-* headers, which
+# the app's same-origin checks rely on (docs/07). APP_ORIGIN is the UI origin.
+localhost {
+	tls internal
+	handle /api/webhooks/github {
+		reverse_proxy app:3000
+	}
+	handle {
+		respond 404
+	}
+}
+
+https://localhost:8444 {
+	tls internal
+	reverse_proxy app:3000
+}

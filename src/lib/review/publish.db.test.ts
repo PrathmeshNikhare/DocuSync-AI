@@ -29,6 +29,7 @@ import {
 import { decide } from "./decisions";
 import { hashPassword } from "./password";
 import { createDocsPr, MAX_ATTEMPTS, type PublishDeps } from "./publish";
+import { getAnalysis } from "./queries";
 import { saveAnalysis } from "./store";
 
 const { appUrl, ownerUrl } = requireTestDbUrls();
@@ -696,6 +697,51 @@ describe("migration 0005 grants", () => {
     );
   });
 
+  it("store a live analysis as partial when docs could not be read (review L8)", async () => {
+    const gh = new FakeGitHub({
+      owner: "acme",
+      repo: "widgets",
+      repoId: 42,
+      installationId: 7,
+      files: scenario.docs,
+      pullNumber: 5,
+      headRef: "feature/rename",
+      baseRef: "main",
+      appSlug: SLUG,
+    });
+    const snapshot = {
+      ...snapshotFor(scenario),
+      ref: { owner: "acme", repo: "widgets", number: 5 },
+      headSha: gh.headSha,
+    };
+    const result = await assistImpact(snapshot, docs, undefined);
+    const save = (docsPartial: boolean) =>
+      saveAnalysis(
+        pool,
+        {
+          kind: "github",
+          githubRepoId: 42,
+          installationId: 7,
+          headRef: "feature/rename",
+          baseRef: "main",
+          notes: ["n"],
+          docsPartial,
+        },
+        snapshot,
+        docs,
+        result,
+      );
+    const partialId = await save(true);
+    const fullId = await save(false);
+    const alice = await addReviewerAs(ownerUrl, "alice", passwordHash);
+    const repo = (
+      await pool.query<{ id: string }>("SELECT id FROM repositories")
+    ).rows[0]!.id;
+    await grantAs(ownerUrl, alice, repo);
+    expect((await getAnalysis(pool, alice, partialId))?.docsPartial).toBe(true);
+    expect((await getAnalysis(pool, alice, fullId))?.docsPartial).toBe(false);
+  });
+
   it("let a live run fill branch names on a PR row the webhook created first", async () => {
     const gh = new FakeGitHub({
       owner: "acme",
@@ -1045,5 +1091,62 @@ describe("security-check M-1: the PR carries only DocuSync's commit", () => {
         pr!.head.sha +
         "`. This pull request should contain exactly this one commit",
     );
+  });
+});
+
+describe("Phase 06 fixes", () => {
+  it("reports the step an attempt reached (review L6)", async () => {
+    const s = await setup();
+    s.gh.failNext((m, p) => m === "POST" && p.endsWith("/pulls"), {
+      status: 502,
+    });
+    expect(await s.publish()).toMatchObject({
+      ok: false,
+      code: "GITHUB_UPSTREAM_ERROR",
+      step: "committed",
+    });
+  });
+
+  it("refuses to resume an output whose stored binding no longer matches the approval (review L3)", async () => {
+    const s = await setup();
+    s.gh.failNext((m, p) => m === "POST" && p.endsWith("/pulls"), {
+      status: 502,
+    });
+    await s.publish();
+    await owner("UPDATE github_outputs SET patch_sha256 = $1", [
+      "9".repeat(64),
+    ]);
+    await allowRetry();
+    expect(await s.publish()).toMatchObject({
+      ok: false,
+      code: "APPROVAL_TAMPERED",
+    });
+    expect(docsPrs(s.gh)).toEqual([]);
+  });
+});
+
+describe("early exit (security-check L-3)", () => {
+  it("answers a terminal output from its row, before re-checking the approval", async () => {
+    const s = await setup();
+    s.gh.sourcePull.state = "closed";
+    expect(await s.publish()).toMatchObject({ ok: false, code: "PR_NOT_OPEN" });
+    await allowRetry();
+    // A wrong echo would be APPROVAL_MISMATCH if the approval were checked first.
+    expect(
+      await s.publish(s.bob, { ...s.echo, patchSha256: "1".repeat(64) }),
+    ).toMatchObject({ ok: false, code: "PR_NOT_OPEN" });
+  });
+
+  it("answers a locked output with IN_PROGRESS without re-checking the approval", async () => {
+    const s = await setup();
+    s.gh.failNext((m) => m === "GET", { status: 503 });
+    await s.publish();
+    await owner(
+      `UPDATE github_outputs SET lease_token = gen_random_uuid(),
+         lease_until = now() + interval '60 seconds', updated_at = now() - interval '1 minute'`,
+    );
+    expect(
+      await s.publish(s.bob, { ...s.echo, patchSha256: "1".repeat(64) }),
+    ).toMatchObject({ ok: false, code: "IN_PROGRESS" });
   });
 });

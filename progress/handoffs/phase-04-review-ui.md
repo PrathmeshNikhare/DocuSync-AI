@@ -163,3 +163,7 @@ Phase 04 is one commit on top of `f9f19a3`. To undo it without rewriting history
   - **Revision checks:** re-check head SHA, blob SHA (GitHub's, at `headSha`) and the patch hash against the recorded decision.
   - **Writes:** use narrow write permissions and idempotency (`github_outputs`), and never merge.
   - **Live data:** live analyses still need doc fetching (Contents: read, symlinks refused) and a runner.
+
+## Correction (2026-10-12, during Phase 06)
+
+This handoff says GitHub CI was not run because there was no remote. That was wrong: `origin` (github.com/PrathmeshNikhare/DocuSync-AI) existed, and GitHub Actions ran on this phase's commit. The run failed at `npm ci`: the lockfile, generated on Windows, lacked the optional `@emnapi` packages npm on Linux expects, so no check ran in CI. Fixed in Phase 06 by commit `ff5222e`, which also fixed a build failure hidden behind the install step. Local checks were unaffected.

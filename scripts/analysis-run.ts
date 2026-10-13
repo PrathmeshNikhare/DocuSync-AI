@@ -84,7 +84,19 @@ async function runLive(
   // The repository id comes from GitHub, never from the command line.
   if (!pull.data.head.repo || pull.data.head.repo.id !== pull.data.base.repo.id)
     fail("FORK_NOT_SUPPORTED");
-  const { docs, notes } = await fetchDocsAtHead(reader, ref, snapshot.headSha);
+  // The token is scoped to one repository of the installation by name; the PR
+  // must be in exactly that repository (a mistyped owner could name a public
+  // repository outside the installation).
+  const scoped = await reader.tokenRepositoryIds();
+  if (scoped.length !== 1 || scoped[0] !== pull.data.base.repo.id)
+    fail("REPOSITORY_MISMATCH");
+  const canonical = pull.data.base.repo;
+  if (!canonical.name || !canonical.owner) fail("GITHUB_INVALID_RESPONSE");
+  const { docs, notes, partial } = await fetchDocsAtHead(
+    reader,
+    ref,
+    snapshot.headSha,
+  );
   const env = getOllamaEnv();
   const result = await assistImpact(
     snapshot,
@@ -98,10 +110,13 @@ async function runLive(
       {
         kind: "github",
         githubRepoId: pull.data.base.repo.id,
+        owner: canonical.owner.login,
+        name: canonical.name,
         installationId: id,
         headRef: pull.data.head.ref,
         baseRef: pull.data.base.ref,
         notes,
+        docsPartial: partial,
       },
       snapshot,
       docs,

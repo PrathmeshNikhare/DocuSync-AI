@@ -166,3 +166,7 @@ Phase 05 is PASS and committed. Before enabling writes anywhere: set up the `doc
   - reader token scope verification, bidi escaping in PR text, response-size caps, rate limits;
   - MFA, a nonce CSP, egress restriction;
   - a live GitHub run.
+
+## Correction (2026-10-12, during Phase 06)
+
+This handoff says GitHub CI was not run because there was no remote. That was wrong: `origin` (github.com/PrathmeshNikhare/DocuSync-AI) existed, and GitHub Actions ran on this phase's commit. The run failed at `npm ci`: the lockfile, generated on Windows, lacked the optional `@emnapi` packages npm on Linux expects, so no check ran in CI. Fixed in Phase 06 by commit `ff5222e`, which also fixed a build failure hidden behind the install step. Local checks were unaffected.

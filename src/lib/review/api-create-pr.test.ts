@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiErrorSchema } from "@/lib/schemas";
-import { handleCreatePr } from "./api";
+import { createPrLimits, handleCreatePr } from "./api";
 import { createDocsPr, type PublishDeps } from "./publish";
 
 vi.mock("./publish", async (original) => ({
@@ -15,6 +15,7 @@ beforeEach(() => {
   logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
   vi.stubEnv("GITHUB_WRITES_ENABLED", "true");
   publish.mockReset();
+  createPrLimits.reset();
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -100,6 +101,7 @@ describe("POST /api/reviews/:id/create-pr", () => {
         ok: false,
         code,
         outputId: "00000000-0000-4000-8000-0000000000ff",
+        step: "committed",
       });
       const r = await call().res;
       expect(r.status).toBe(status);
@@ -110,6 +112,7 @@ describe("POST /api/reviews/:id/create-pr", () => {
       expect(logged()).toContain(
         '"outputId":"00000000-0000-4000-8000-0000000000ff"',
       );
+      expect(logged()).toContain('"step":"committed"');
     },
   );
 
@@ -183,5 +186,28 @@ describe("POST /api/reviews/:id/create-pr", () => {
       apiErrorSchema.parse(await res.json()).error.message;
     expect(await message(retryable)).toMatch(/try again later/);
     expect(await message(terminal)).toMatch(/can't be published/);
+  });
+});
+
+describe("per-reviewer limit (Phase 06)", () => {
+  it("refuses an 11th create-PR request within a minute with 429, without publishing", async () => {
+    publish.mockResolvedValue({ ok: false, code: "STALE_HEAD" });
+    for (let i = 0; i < 10; i++) expect((await call().res).status).toBe(409);
+    const r = await call().res;
+    expect(r.status).toBe(429);
+    expect(await codeOf(r)).toBe("RATE_LIMITED");
+    expect(publish).toHaveBeenCalledTimes(10);
+  });
+});
+
+describe("an invalid APP_ORIGIN on create-PR (review L2)", () => {
+  it("answers 503 CONFIG_INVALID before the session or publishing", async () => {
+    vi.stubEnv("APP_ORIGIN", "not a url");
+    const { res, reviewerFor } = call();
+    const r = await res;
+    expect(r.status).toBe(503);
+    expect(await codeOf(r)).toBe("CONFIG_INVALID");
+    expect(reviewerFor).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
   });
 });

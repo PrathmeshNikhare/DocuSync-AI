@@ -106,6 +106,7 @@ const analysis = (over: Partial<Analysis> = {}): Analysis => ({
   engineVersion: "deterministic-0.3.0",
   modelStatus: "ok",
   missingContext: [],
+  docsPartial: false,
   changedFiles: [
     {
       path: "src/config.ts",
@@ -156,6 +157,18 @@ const analysis = (over: Partial<Analysis> = {}): Analysis => ({
 });
 
 describe("AnalysisView", () => {
+  it("marks a partial analysis, and only then (review L8)", () => {
+    render(<AnalysisView analysis={analysis({ docsPartial: true })} />);
+    expect(
+      screen.getByText(
+        "Partial analysis: some documentation could not be read",
+      ),
+    ).toBeTruthy();
+    cleanup();
+    render(<AnalysisView analysis={analysis()} />);
+    expect(screen.queryByText(/Partial analysis/)).toBeNull();
+  });
+
   it("separates deterministic evidence, uncertainty and model output", () => {
     render(<AnalysisView analysis={analysis()} />);
     const card = screen.getByRole("article", { name: "docs/configuration.md" });

@@ -105,9 +105,11 @@ export function addRequestGuards(
  * exchange done by @octokit/auth-app, on a separate client that never touches
  * repository endpoints.
  */
-export function createOctokitReader(
-  opts: OctokitReaderOptions,
-): GitHubReader & GitHubTreeReader {
+export function createOctokitReader(opts: OctokitReaderOptions): GitHubReader &
+  GitHubTreeReader & {
+    /** The repository ids GitHub scoped the installation token to (live path). */
+    tokenRepositoryIds(): Promise<readonly number[]>;
+  } {
   const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const requestOptions = opts.fetch ? { fetch: opts.fetch } : {};
   const tokenClient = new Octokit({ request: requestOptions, log: SILENT_LOG });
@@ -120,6 +122,7 @@ export function createOctokitReader(
   });
 
   let client: Promise<Octokit> | undefined;
+  let tokenRepositoryIds: readonly number[] = [];
   const getClient = () =>
     (client ??= auth({
       type: "installation",
@@ -131,7 +134,8 @@ export function createOctokitReader(
           }
         : { permissions: READ_ONLY_PERMISSIONS }),
     })
-      .then(({ token }) => {
+      .then(({ token, repositoryIds }) => {
+        tokenRepositoryIds = (repositoryIds ?? []).map(Number);
         const octokit = new Octokit({
           auth: token,
           request: requestOptions,
@@ -146,6 +150,11 @@ export function createOctokitReader(
       }));
 
   return {
+    async tokenRepositoryIds() {
+      await getClient();
+      return tokenRepositoryIds;
+    },
+
     async getPullRequest(ref) {
       try {
         const octokit = await getClient();

@@ -21,3 +21,11 @@ next-env.d.ts
 
 # generated reviewer passwords (npm run reviewer:add --password-file)
 *.pw
+
+# deployment secrets (deploy/*.env.example are placeholders and stay tracked)
+deploy/*.env
+
+# database dumps (hold password and session hashes and document content)
+*.dump
+*.backup
+*.sql.gz

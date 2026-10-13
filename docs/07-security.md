@@ -34,6 +34,81 @@ GitHub credentials, repository source and documentation, user identity, review d
 13. Keep Ollama/internal endpoints private; restrict outbound network access where practical.
 14. Add security tests for each control before enabling write operations.
 
+## Implemented controls (Phase 06)
+
+- **CI actually runs again.** GitHub Actions had failed at `npm ci` on every commit since Phase 01, because of a Windows-generated lockfile, so none of the checks below ran in CI until `ff5222e`. Since then CI runs the full pipeline on every push. On Windows, `npm install` drops Linux-only optional packages from the lockfile, so contributors regenerate it on Linux (README).
+- **Build-time database access removed:** `getCurrentReviewer` read the pool before `cookies()`, so a build without `DATABASE_URL` threw while prerendering. The cookie is now read first.
+- **Restores no longer undo the hardening:**
+  - **Finding:** `pg_restore` into a database with default privileges silently gave the app role `UPDATE`/`DELETE` back on restricted tables.
+  - **Fixes:** docs/10 has a verified restore procedure, and `npm run db:check-grants` checks every app-role limit. The migrate job runs it after migrations.
+- **Public surface (security-check M-A, fixed):** the reference proxy's public site serves only `/api/webhooks/github`. The reviewer UI is a separate site on a port that must stay private (docs/10). Re-verified: `/login` and the API give 404 publicly.
+- **Security-check fixes, round 2:**
+  - **`db:check-grants` (L-2):** also detects single-column grants on tables it checks as a whole (`has_any_column_privilege`; tested).
+  - **Deployment init (L-3, L-5):** creates the app role without login and grants login only with a real password. It refuses placeholder or short passwords, so a failed first start fails closed (verified with the unedited env examples). The password no longer appears as a `psql` argument.
+  - **Screenshot script (L-6):**
+    - refuses non-fixture data before approving anything;
+    - requires https unless local;
+    - prints fixed codes only;
+    - writes screenshots only when the whole run succeeds.
+    - Verified on a temporary live-labelled analysis: `NOT_FIXTURE_DATA`, no decision recorded, no file written.
+  - **Documented, not fixed:**
+    - L-4: superuser for migrations and operator commands, and no app-role assertion;
+    - Ollama without authentication;
+    - tag-pinned images and Actions (docs/10, "Known limitations of the reference deployment").
+- **No secrets in images (security-check L-1, fixed):** the Dockerfile copies an explicit file list, and `.dockerignore` excludes secret patterns at any depth. Re-verified: dummy keys, password files, a dump and an `.npmrc` planted in nested folders were absent from both rebuilt images.
+- **Same-origin check behind a proxy:** `APP_ORIGIN` (validated as a bare origin). It was found during the deployment verification, where every decision through the TLS proxy got `FORBIDDEN_ORIGIN`.
+- **Reference deployment:** only the proxy is published, and Postgres and Ollama sit on an internal network with no route out. Models are pulled by a separate one-shot `ollama-pull` service that has egress but never sees prompts (fixed after `/review` L1; the first version gave the serving Ollama a permanent route out). The app role gets its own password at first start; the first version of the init script left the placeholder password in place, which this verification found and fixed (docs/10).
+- **Phase 05 follow-ups fixed:**
+  - **L-1:** the live CLI requires the read token's single repository to be the PR's repository, and stores GitHub's canonical owner and name.
+  - **L-2:** hidden and bidi characters in PR text become `[U+XXXX]`.
+  - **L-3:** early exit for blocked outputs, plus per-reviewer limits on decisions (60/min) and create-PR (10/min).
+  - **`/review` fixes:**
+    - L3: a resume re-checks the output's stored binding;
+    - L6: the step is logged;
+    - L7: create-PR focus while pending and after success;
+    - L8: `docs_partial`;
+    - L9: `reviewer:add` commits the account only after the password file is written.
+- **Evidence:** the table below. The 12 Phase 06 mutation checks were all caught (docs/08).
+
+## Security evidence (Phase 06)
+
+Every threat class in the Phase 06 spec, mapped to the tests that exercise it. All of them run in `npm test` or `npm run test:db`. GitHub Actions runs both on every push, and has passed since `ff5222e`. The Phase 06 tests themselves have so far passed locally and in a Linux container mirror of the CI pipeline. They reach GitHub Actions only once Phase 06 is pushed. The exception is the live Ollama tests (`npm run test:ollama`), which need a local model and run on a developer machine only. This is test evidence, not a formal audit or penetration test.
+
+| Threat class | Where it is tested (file › test) |
+|---|---|
+| Malformed or forged webhook events | `webhook-handler.test.ts` › rejects an invalid or missing signature before parsing or enqueueing; rejects signed requests with bad headers, JSON or payload; ignores unsupported events and actions; ignores an installation not on the allowlist. `webhook.test.ts` › rejects a body modified after signing |
+| Oversized input | `webhook.test.ts` › readBodyLimited (declared and actual size, streams); `webhook-handler.test.ts` › rejects oversized payloads with 413; `normalize.test.ts` › drops oversized patches, more hunks than the limit; `api-create-pr.test.ts` › refuses oversized bodies; `patches.test.ts` › rejects oversized and broad patches; `docs.test.ts` › skips oversized docs; `llm.test.ts` › refuses a prompt over the provider's input limit |
+| Prompt injection and untrusted model output | `llm.test.ts` › sends data only as JSON; prompts tell the model all data is untrusted; the patch model can't name a file; rejects invalid output after the bounded retry. `patches.test.ts` › flags any link, HTML or hidden character in model prose; validatePatch rejections. `pr-content.test.ts` › untrusted values only inside code; hidden characters marked. `ollama.ollama.test.ts` › keeps every invariant on the prompt-injection fixture (live model). Fixture `injection-in-doc` in both evaluations |
+| Path traversal, symlinks, unsafe paths | `schemas.test.ts` › repoPathSchema, rejects traversal in docPath; `normalize.test.ts` › rejects unsafe paths by index; `patches.test.ts` › docPathIssues, blank characters rejected in target paths; `docs.test.ts` › refuses symlinks and submodules; `writer.test.ts` › a `PUT` to another path is refused; `publish.db.test.ts` › symlink at the target, a non-tree directory |
+| App-role database limits | `grants.db.test.ts` › passes on a migrated database; reports re-granted privileges, a single re-granted binding column, UPDATE on grants and the ledger, database TEMPORARY, schema CREATE, TRUNCATE, and single-column INSERT/UPDATE on whole-table limits |
+| Unauthorized access | `review.db.test.ts` › authorized reads, rejected sessions, operator-only accounts; `api.test.ts` › same-origin check; `api-create-pr.test.ts` › cross-site and unauthenticated requests; `publish.db.test.ts` › a requester without the grant, a decider disabled or ungranted; migration 0005 grants |
+| Stale or tampered approvals | `review.db.test.ts` › decide (binding, one decision, re-validation); `publish.db.test.ts` › echo mismatch, tampered hash, chain mismatch, forged base, stale head, retargeted PR, changed blob, truncated tree, the output binding changed (L3), extra commits (M-1) |
+| GitHub write boundaries | `writer.test.ts` › 22 refused requests at the hook layer, both guard layers on their own, token scope, token revocation (including after the deadline), the token client, no merge method; `publish.db.test.ts` › duplicates, leases, resume |
+| Abuse and flooding | `review.db.test.ts` › sign-in rate limit and concurrency cap; `rate-limit.test.ts`; `api.test.ts` › 61st decision request gets 429; `api-create-pr.test.ts` › 11th create-PR request gets 429; `publish.db.test.ts` › early exit, attempt limit |
+| Secrets in logs and responses | `webhook-handler.test.ts` › never logs the secret, signature or payload; `llm.test.ts` › logs metadata only; `writer.test.ts` › no token or GitHub message in logs; `api.test.ts` and `api-create-pr.test.ts` › coded 500s that hide the error; `actions.test.ts` › code-only errors |
+
+**Mutation evidence:** each check removes one control and confirms that a test fails. Phase 04 ran its own set, Phase 05 ran 30 and Phase 06 ran 12, all caught (docs/08). These were observed locally; the raw logs are not committed.
+
+**Kill switches** (all need a server restart):
+- **GitHub writes:** `GITHUB_WRITES_ENABLED` not `true`.
+- **Webhook intake:** an empty `GITHUB_ALLOWED_INSTALLATION_IDS`, which answers 503.
+- **The model:** `OLLAMA_MODEL` unset (deterministic only).
+- **A reviewer:** `npm run reviewer:disable`, or `reviewer:revoke` for one grant.
+
+**Rate limits:**
+- **Sign-in:** per username (5 failures in 15 minutes) and 4 concurrent.
+- **Decisions:** 60 per reviewer per minute.
+- **Create-PR:** 10 per reviewer per minute, plus 5 attempts per decision, 30 s apart.
+- **Per process:** the decision and create-PR limits live in memory per process (a `ponytail:` note in `rate-limit.ts`).
+- **Before untrusted networks:** an upstream per-IP limiter is still required for the reviewer UI. The reference proxy keeps the UI off the internet and publishes only the webhook path (security-check M-A).
+
+**Not covered:**
+- No fuzzing.
+- No live GitHub App run.
+- Prompt injection is exercised live on one fixture with one small model only.
+- No load test.
+- No automated test of the deployment. The proxy split, network isolation, init behaviour, image contents and the sign-in through the proxy were verified by hand with Docker (docs/10).
+
 ## Implemented controls (Phase 05)
 
 The approval-gated GitHub write path (docs/13, D-013). Verified against a fetch-level fake of GitHub and the test database only: **no live GitHub App was available**, so nothing has written to real GitHub.

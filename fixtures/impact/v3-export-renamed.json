@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-export-renamed",
+  "category": "import_export",
+  "description": "The exported function createClient is renamed to connect; the usage guide still calls createClient.",
+  "files": [
+    {
+      "filename": "src/index.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -5,3 +5,3 @@\n-export function createClient(options: Options) {\n+export function connect(options: Options) {\n   return new Client(options);\n }"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/usage.md": "# Usage\n\n```ts\nimport { createClient } from \"example\";\n\nconst client = createClient({ url });\n```\n"
+  },
+  "labels": {
+    "affected": ["docs/usage.md"]
+  }
+}

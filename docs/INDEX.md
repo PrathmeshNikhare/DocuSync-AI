@@ -15,5 +15,7 @@
 | `11-demo-script.md` | Reproducible portfolio demonstration |
 | `12-decisions.md` | Architecture decision record index |
 | `13-github-write-workflow.md` | Phase 05 approval-gated GitHub write design |
+| `evaluation/` | Generated evaluation reports: `impact-baseline.md` (deterministic, checked by a test), `impact-latency.md`, `llm-assisted.md` |
+| `screenshots/` | Real UI captures for the demo (docs/11) |
 
 Read the active phase spec as well. Update these docs when implementation changes their claims.

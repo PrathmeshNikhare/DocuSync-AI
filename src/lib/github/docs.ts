@@ -27,6 +27,8 @@ const MAX_TOTAL_BYTES = 10_000_000;
 
 export interface FetchedDocs {
   docs: DocFile[];
+  /** True when some documentation at the head could not be read. */
+  partial: boolean;
   /** Plain-language notes for the analysis's missing context. */
   notes: string[];
 }
@@ -100,5 +102,5 @@ export async function fetchDocsAtHead(
     "not plain UTF-8 text (a BOM, NUL bytes or invalid UTF-8)",
   );
   say(skipped.mismatch, "their content did not match GitHub's blob id");
-  return { docs, notes };
+  return { docs, notes, partial: notes.length > 0 };
 }

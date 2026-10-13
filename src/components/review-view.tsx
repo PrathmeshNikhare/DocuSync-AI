@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReviewView as Review } from "@/lib/review/queries";
-import { CreatePrPanel, PullRequestLink } from "./create-pr-panel";
+import { CreatePrPanel, PrResultNotice } from "./create-pr-panel";
 import { DecisionPanel } from "./decision-panel";
 import { EvidenceList, ModelAssessment } from "./evidence";
 import { SideBySideDiff } from "./side-by-side-diff";
@@ -237,10 +237,7 @@ export function ReviewView({ review }: { review: Review }) {
           )}
           {decision.decision !== "rejected" &&
             (output?.step === "pr_opened" && output.prUrl && output.prNumber ? (
-              <Notice tone="success" title="Documentation pull request">
-                <PullRequestLink url={output.prUrl} number={output.prNumber} />.
-                Review it on GitHub; it is never merged automatically.
-              </Notice>
+              <PrResultNotice url={output.prUrl} number={output.prNumber} />
             ) : repository.source === "fixture" ? (
               <Notice tone="info" title="No pull request for fixture data">
                 Fixture analyses are never written to GitHub.

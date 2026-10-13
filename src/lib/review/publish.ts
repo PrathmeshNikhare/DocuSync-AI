@@ -62,7 +62,13 @@ export type PublishResult =
       /** False when the PR already existed (a repeated request). */
       created: boolean;
     }
-  | { ok: false; code: string; outputId?: string };
+  | {
+      ok: false;
+      code: string;
+      outputId?: string;
+      /** The step the output had reached when this attempt stopped. */
+      step?: string;
+    };
 
 export interface PublishDeps {
   pool: Pool;
@@ -127,11 +133,24 @@ interface Output {
   pr_url: string | null;
   attempts: number;
   leased: boolean;
+  head_sha: string;
+  base_blob_sha: string;
+  patch_sha256: string;
+}
+
+/** Why an existing output can't be claimed now, or undefined if it can. */
+function blocked(o: Output & { too_soon: boolean }): string | undefined {
+  if (o.leased) return "IN_PROGRESS";
+  if (o.error_code && !RETRYABLE.includes(o.error_code)) return o.error_code;
+  if (o.attempts >= MAX_ATTEMPTS) return "ATTEMPT_LIMIT";
+  if (o.too_soon) return "RETRY_TOO_SOON";
+  return undefined;
 }
 
 const OUTPUT_COLUMNS = `id, github_repo_id, installation_id, branch, docs_pr_base_ref, step,
-  error_code, commit_sha, pr_number, pr_url, attempts,
-  (lease_until IS NOT NULL AND lease_until > now()) AS leased`;
+  error_code, commit_sha, pr_number, pr_url, attempts, head_sha, base_blob_sha, patch_sha256,
+  (lease_until IS NOT NULL AND lease_until > now()) AS leased,
+  (attempts > 0 AND updated_at >= now() - interval '${RETRY_INTERVAL}') AS too_soon`;
 
 /** Ungranted and unknown proposals look the same: undefined. */
 async function loadApproval(
@@ -267,27 +286,25 @@ export async function createDocsPr(
   const a = await loadApproval(deps.pool, reviewerId, proposalId);
   if (!a) return { ok: false, code: "NOT_FOUND" };
 
-  // A PR already opened for this decision is reported as it is, even if the
-  // approval could no longer be published now; the review page shows it anyway.
+  // An existing output answers cheaply, before the approval is re-validated: a
+  // PR already opened is reported as it is (even if the approval could no longer
+  // be published now), and a locked, terminal or exhausted output is refused.
   if (a.decision_id) {
-    const done = await deps.pool.query<{
-      id: string;
-      pr_number: number;
-      pr_url: string;
-    }>(
-      `SELECT id, pr_number, pr_url FROM github_outputs
-        WHERE decision_id = $1 AND step = 'pr_opened'`,
+    const { rows } = await deps.pool.query<Output & { too_soon: boolean }>(
+      `SELECT ${OUTPUT_COLUMNS} FROM github_outputs WHERE decision_id = $1`,
       [a.decision_id],
     );
-    const d = done.rows[0];
-    if (d)
+    const o = rows[0];
+    if (o?.step === "pr_opened")
       return {
         ok: true,
-        outputId: d.id,
-        prNumber: d.pr_number,
-        prUrl: d.pr_url,
+        outputId: o.id,
+        prNumber: o.pr_number!,
+        prUrl: o.pr_url!,
         created: false,
       };
+    const code = o && blocked(o);
+    if (code) return { ok: false, code, outputId: o.id, step: o.step };
   }
 
   let newContent: string;
@@ -352,7 +369,7 @@ export async function createDocsPr(
   );
   const out = claimed.rows[0];
   if (!out) {
-    const { rows } = await deps.pool.query<Output>(
+    const { rows } = await deps.pool.query<Output & { too_soon: boolean }>(
       `SELECT ${OUTPUT_COLUMNS} FROM github_outputs WHERE decision_id = $1`,
       [a.decision_id],
     );
@@ -365,24 +382,25 @@ export async function createDocsPr(
         prUrl: o.pr_url!,
         created: false,
       };
-    const code = o.leased
-      ? "IN_PROGRESS"
-      : o.error_code && !RETRYABLE.includes(o.error_code)
-        ? o.error_code
-        : o.attempts >= MAX_ATTEMPTS
-          ? "ATTEMPT_LIMIT"
-          : "RETRY_TOO_SOON";
-    return { ok: false, code, outputId: o.id };
+    // Lost a race with another request between the check above and the claim.
+    return {
+      ok: false,
+      code: blocked(o) ?? "IN_PROGRESS",
+      outputId: o.id,
+      step: o.step,
+    };
   }
 
   /** Progress writes need the live lease; losing it stops the operation. */
-  const advance = async (set: string, values: unknown[]) => {
+  let step = out.step;
+  const advance = async (next: string, set: string, values: unknown[]) => {
     const r = await deps.pool.query(
-      `UPDATE github_outputs SET ${set}, updated_at = now()
+      `UPDATE github_outputs SET step = $3${set ? `, ${set}` : ""}, updated_at = now()
         WHERE id = $1 AND lease_token = $2 AND lease_until > now()`,
-      [out.id, token, ...values],
+      [out.id, token, next, ...values],
     );
     if (!r.rowCount) throw new Stop("LEASE_LOST");
+    step = next;
   };
 
   const binding: WriteBinding = {
@@ -405,6 +423,13 @@ export async function createDocsPr(
       "INSERT INTO github_output_attempts (output_id, reviewer_id) VALUES ($1, $2)",
       [out.id, reviewerId],
     );
+    // A resumed output must still describe this approval (/review L3).
+    if (
+      out.head_sha !== a.pp_head ||
+      out.base_blob_sha !== a.pp_blob ||
+      out.patch_sha256 !== a.patch_sha256
+    )
+      throw new Stop("APPROVAL_TAMPERED");
     if (
       out.installation_id !== a.installation_id ||
       out.github_repo_id !== a.github_repo_id ||
@@ -436,7 +461,7 @@ export async function createDocsPr(
       [out.id, token, code],
     );
     if (code === "INTERNAL_ERROR") throw err;
-    return { ok: false, code, outputId: out.id };
+    return { ok: false, code, outputId: out.id, step };
   } finally {
     await writer?.close();
   }
@@ -450,7 +475,7 @@ async function publishSteps(
   newContent: string,
   content: PrContent,
   appSlug: string,
-  advance: (set: string, values: unknown[]) => Promise<void>,
+  advance: (step: string, set: string, values: unknown[]) => Promise<void>,
 ): Promise<{ prNumber: number; prUrl: string; created: boolean }> {
   // 11. The source PR as GitHub sees it now.
   const pull = parse(livePullSchema, await w.getPull());
@@ -493,7 +518,7 @@ async function publishSteps(
     tip = (await w.createBranch()) ? b.headSha : await w.branchSha();
     if (!tip) throw new Stop("BRANCH_CONFLICT");
   }
-  if (out.step === "pending") await advance("step = 'branch_created'", []);
+  if (out.step === "pending") await advance("branch_created", "", []);
 
   /**
    * True if `sha` is exactly our change: one commit on top of the reviewed head,
@@ -551,8 +576,7 @@ async function publishSteps(
   } else {
     throw new Stop("BRANCH_CONFLICT");
   }
-  if (!out.commit_sha)
-    await advance("step = 'committed', commit_sha = $3", [commit]);
+  if (!out.commit_sha) await advance("committed", "commit_sha = $4", [commit]);
 
   // PR: the branch must still be exactly our one commit on the reviewed head.
   if ((await w.branchSha()) !== commit || !(await isOurCommit(commit)))
@@ -599,7 +623,8 @@ async function publishSteps(
   }
   const prUrl = `https://github.com/${b.owner}/${b.repo}/pull/${number}`;
   await advance(
-    `step = 'pr_opened', pr_number = $3, pr_url = $4, error_code = NULL,
+    "pr_opened",
+    `pr_number = $4, pr_url = $5, error_code = NULL,
      lease_token = NULL, lease_until = NULL`,
     [number, prUrl],
   );

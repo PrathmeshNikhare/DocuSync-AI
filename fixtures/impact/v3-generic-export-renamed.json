@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-generic-export-renamed",
+  "category": "known_false_positive",
+  "description": "An exported constant named items is renamed to entries; the guide uses the ordinary word 'items' in prose only.",
+  "files": [
+    {
+      "filename": "src/list.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,1 +1,1 @@\n-export const items: Item[] = [];\n+export const entries: Item[] = [];"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/guide.md": "# Guide\n\nAdd items to your cart, then check out. Removed items go back to the shelf.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

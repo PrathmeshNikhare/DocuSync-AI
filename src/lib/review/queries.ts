@@ -178,6 +178,8 @@ export interface AnalysisView {
   engineVersion: string | null;
   modelStatus: string | null;
   missingContext: string[];
+  /** Some documentation could not be read (/review L8). */
+  docsPartial: boolean;
   changedFiles: z.infer<typeof changedFileViewSchema>[];
   candidates: CandidateView[];
 }
@@ -206,10 +208,12 @@ export async function getAnalysis(
     model_status: string | null;
     missing_context: unknown;
     changed_files: unknown;
+    docs_partial: boolean;
   }>(
     `SELECT a.id, r.id AS repository_id, r.source, r.owner, r.name, p.github_pr_number,
             p.head_sha, p.base_sha, a.pr_title, a.status, a.error_code, a.created_at,
-            a.completed_at, a.engine_version, a.model_status, a.missing_context, a.changed_files
+            a.completed_at, a.engine_version, a.model_status, a.missing_context, a.changed_files,
+            a.docs_partial
        FROM analyses a
        JOIN pull_requests p ON p.id = a.pull_request_id
        JOIN repositories r ON r.id = p.repository_id
@@ -259,6 +263,7 @@ export async function getAnalysis(
     engineVersion: a.engine_version,
     modelStatus: a.model_status,
     missingContext: stringList.parse(a.missing_context ?? []),
+    docsPartial: a.docs_partial,
     changedFiles: z
       .array(changedFileViewSchema)
       .max(300)

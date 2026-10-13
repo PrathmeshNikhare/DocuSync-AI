@@ -9,7 +9,7 @@
 //   npm run reviewer:unlock -- --username alice    (clears failed sign-ins after a lockout)
 //   npm run sessions:prune                          (deletes expired and revoked sessions)
 import { randomBytes } from "node:crypto";
-import { closeSync, openSync, unlinkSync, writeSync } from "node:fs";
+import { closeSync, fsyncSync, openSync, unlinkSync, writeSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { Client } from "pg";
 import { getMigrationDatabaseUrl } from "@/lib/env";
@@ -99,13 +99,19 @@ async function main() {
       // the account exists. Mode 0600 is honoured on POSIX only.
       const fd = openSync(file, "wx", 0o600);
       const password = randomBytes(18).toString("base64url");
+      // The account commits only after the password is on disk, so a failed write
+      // can't leave an account nobody knows the password of (/review L9).
       try {
+        await client.query("BEGIN");
         await client.query(
           "INSERT INTO reviewers (username, display_name, password_hash) VALUES ($1, $2, $3)",
           [username, display, await hashPassword(password)],
         );
         writeSync(fd, `${password}\n`);
+        fsyncSync(fd);
+        await client.query("COMMIT");
       } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
         closeSync(fd);
         unlinkSync(file); // no account, so no password to keep
         throw err;

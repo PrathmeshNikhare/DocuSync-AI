@@ -358,3 +358,91 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
 - Decisions: D-013.
 - Git state: `main`; Phase 05 committed locally on top of `e37fd24`; not pushed.
 - Handoff path: `progress/handoffs/phase-05-github-workflow.md`
+
+### 2026-10-12 — Phase 06 — IN PROGRESS (CI correction)
+- Finding: earlier entries and handoffs say "GitHub CI NOT RUN (no remote)". In fact `origin` existed and GitHub Actions ran for every phase commit: Phase 00 passed, and Phases 01–05 failed at `npm ci`, so no check ever ran in CI after Phase 00. Found by querying the GitHub API at the start of Phase 06.
+- Cause, reproduced in a `node:24` container: `package-lock.json` (generated on Windows) lacked `@emnapi/core` and `@emnapi/runtime`, which `npm ci` on Linux requires.
+- Hidden behind it: `npm run build` failed without `DATABASE_URL`, because `getCurrentReviewer` evaluated `getPool()` before `await cookies()`, so prerendering threw. Reproduced locally with `DATABASE_URL=` and fixed by reading the cookie first.
+- Fix: commit `ff5222e`, user-authorized and pushed. Lockfile regenerated on Linux (8 entries added, no version changes) plus the `auth.ts` order fix. The full pipeline passed locally in Linux containers (`node:24` and `postgres:16-alpine`): install, format, lint, typecheck, 715 unit tests, build, app-role setup, 109 DB tests.
+- Records: STATUS rows and each handoff now carry the corrected CI result.
+- Result: GitHub Actions run for `ff5222e` completed with **success**, the first passing CI run since Phase 00.
+
+### 2026-10-12 — Phase 06 — IN PROGRESS (held-out dataset pre-registered)
+- 14 new scenarios in `fixtures/impact/v3-*.json`, dataset `impact-v3`, written and labelled before the engine or the model was run on any of them.
+- Label hash, recorded before the first run: `d8b4e802e6fc9c5943cb0950d8d2dc0df9f474cc7d7749238ed4284571779c25`. This is sha256 over each file's name, its `labels` JSON and its category, in sorted file order.
+- Rule for this set: the engine, its config and the prompts are not changed in response to `impact-v3` results in this phase, and labels are not edited after the run. Any later change must be logged with its reason, and the set then counts as tuned.
+- Caveat: the same author wrote the engine and these labels, so "held-out" means labelled before running, not independent.
+
+### 2026-10-12 — Phase 06 — IN PROGRESS (all tasks implemented; gates pending)
+- Scope: as planned and approved (D-014).
+- Changes:
+  - **CI fix:** `ff5222e`, pushed, GitHub Actions green.
+  - **Evaluation:** held-out `impact-v3` (14 scenarios, pre-registered); `eval:latency`; `eval:llm` re-run on 35 scenarios.
+  - **Security evidence:** a table in docs/07.
+  - **Phase 05 Low items:** L-1, L-2, L-3, L3, L6, L7, L8 (migration 0006 `docs_partial`) and L9.
+  - **Rate limits and kill switches:** per-reviewer limits on decisions and create-PR; kill switches documented.
+  - **`db:check-grants`:** added, plus a verified restore procedure. This fixes the restore finding: `pg_restore` with default privileges re-granted `UPDATE`/`DELETE` to the app role.
+  - **Reference deployment:** `Dockerfile`, `.dockerignore`, `deploy/`. Verification found and fixed two bugs: the app-role password init kept the placeholder, and every request through the TLS proxy was refused as cross-origin, now fixed by `APP_ORIGIN`.
+  - **Playwright:** `@playwright/test` 1.63.0 (devDependency) and `npm run screenshots`, with 6 real screenshots.
+  - **Docs:** an as-built Mermaid diagram (02), docs 03, 04, 07, 08, 09, 10, 11, 13 and INDEX, and the README's measured results and known limitations.
+  - **Lockfile:** regenerated on Linux again after the Playwright install, which had dropped the `@emnapi` entries; README documents this for Windows contributors.
+- Commands run (all exit 0):
+  - `npm run format:check`, `lint`, `typecheck`, `test` (742), `test:db` (116), `build`, `npm audit --omit=dev` (0);
+  - `eval:impact`, `eval:latency`, `eval:llm` (`llama3.2:3b`);
+  - `db:migrate` (0006 applied to dev), `db:check-grants`;
+  - the CI pipeline in `node:24` and `postgres:16-alpine` containers;
+  - 12 mutation checks (all caught);
+  - the fresh setup and restore check, the deployment check and the screenshot capture.
+- Not run: `/review`, `/security-check`, a hosted deployment, a live GitHub App run, the `ollama` service in the reference deployment.
+- Decisions: D-014.
+- Git state: `main`, HEAD `ff5222e` (pushed); the rest of Phase 06 is uncommitted.
+- Handoff path: `progress/handoffs/phase-06-evaluation-hardening.md`
+
+### 2026-10-13 — Phase 06 — IN PROGRESS (`/review` fixes applied)
+- Scope: the user-selected `/review` fixes M1–M3, L1–L3, L5 and L7.
+- Changes:
+  - **`src/lib/db/grants.ts`:** complete, column-aware checks, plus database and schema checks; tests extended.
+  - **docs/10 restore:** re-applies `REVOKE TEMPORARY`, and dumps are written outside the repository.
+  - **Ignore files:** `*.dump`, `*.backup` and `*.sql.gz` in both; `.dockerignore` gains the missing secret entries.
+  - **`deploy/compose.yml`:** the serving `ollama` is on the internal network only, and a new one-shot `ollama-pull` service handles downloads.
+  - **`APP_ORIGIN`:** normalized, with `503 CONFIG_INVALID` for invalid values.
+  - **Init script:** runs in a subshell.
+  - **Ollama URL:** guarded.
+  - **Report generators:** data-driven scenario counts and adversarial list; reports regenerated (`eval:llm` re-run: counts unchanged, median 2.9 s, p95 7.8 s).
+  - **Claims:** corrected in docs 07, 08, README and the handoff.
+- Commands run (all exit 0): `npm run format:check`, `lint`, `typecheck`, `test` (748), `test:db` (120), `build`, `npm audit --omit=dev` (0), `eval:impact`, `eval:llm`, `db:check-grants`. Also the Linux CI mirror (all steps pass), the restore re-check (fails before `REVOKE TEMPORARY`, OK after), the deployment re-verification (all checks pass), the sourced init-script check, and 7 mutation checks (all caught).
+- Not run: `/security-check`.
+- Git state: `main`, HEAD `ff5222e`; the rest of Phase 06 is uncommitted.
+
+### 2026-10-13 — Phase 06 — IN PROGRESS (`/security-check` done, M-A and L-1 fixed)
+- Result: no High; M-A (the proxy published `/login` with no per-IP limit) and L-1 (nested secrets could enter the build image) fixed. L-2 to L-6 and the Info items are open (handoff).
+- Changes:
+  - **Proxy:** `deploy/Caddyfile` has a webhook-only public site and a private reviewer-UI site on 8444; `deploy/compose.yml` publishes 8444 on loopback, and `APP_ORIGIN` is now `https://localhost:8444`.
+  - **Images:** the `Dockerfile` copies an explicit file list; `.dockerignore` uses `**/` secret patterns.
+  - **Migrate job:** the documented command uses `run --build`.
+  - **Docs:** 07, 08 and 10.
+- Verification (Docker):
+  - **Public site:** gives 404 except for the webhook.
+  - **UI site:** health, session, database and origin checks pass.
+  - **Images:** dummy secrets planted in nested folders were absent from both rebuilt images; `/app` held only the listed files; a positive control confirmed the search works.
+  - **Found and fixed:** the first build-stage check had used a stale migrate image (`up --build` skips profile services).
+- Git state: `main`, HEAD `ff5222e`; the rest of Phase 06 is uncommitted.
+
+### 2026-10-13 — Phase 06 — IN PROGRESS (security-check round 2: L-2, L-3, L-5, L-6, Info)
+- Scope: the user-selected fixes L-2, L-3, L-5, L-6 and the cheap Info items; the rest documented.
+- Changes:
+  - **`db:check-grants` (L-2):** denied SELECT, INSERT and UPDATE are checked with `has_any_column_privilege`; 2 new DB tests (single-column INSERT on `reviewers`, UPDATE on `patch_proposals.patch_text`).
+  - **Deployment init (L-3, L-5, Info):**
+    - `deploy/initdb/01-app-role.sql` creates the app role `NOLOGIN`, with no `docusync_test`; dev and CI keep `db/init/01-app-role.sql`;
+    - `02-app-password.sh` refuses unset, `REPLACE_…` or short passwords and only then grants `LOGIN`;
+    - the password is read with `\getenv`, not passed as an argument.
+  - **Screenshot script (L-6):** refuses non-fixture data before approving, requires https unless local, prints fixed codes only, and buffers captures until the run succeeds. Screenshots re-captured.
+  - **Documented, not fixed:** L-4 (superuser for migrations and operator commands, no app-role assertion), Ollama without authentication, tag-pinned images and Actions, no compose hardening (docs/10, README).
+  - **Docs:** 07, 08, 10, 11 and README.
+- Verification:
+  - **Init with the unedited env examples:** refused with the message; after the restart the app role was refused with both placeholder values.
+  - **Full deployment re-check:** passed, including browser sign-in through the private UI site (`__Host-` cookie Secure, HttpOnly, Strict) with and without a spoofed `X-Forwarded-Host`.
+  - **Screenshot guard:** `NOT_FIXTURE_DATA` on a temporary live-labelled analysis, no decision recorded, no file written; the temporary data was deleted.
+  - **Mutation check:** reverting L-2 is caught by the new tests.
+  - **Final gate:** format, lint, typecheck, `npm test` 748, `npm run test:db` 122, build, audit (0) and the Linux CI mirror (748 + 122) pass. One earlier full `npm test` run had an intermittent hang in `llm.test.ts` (handoff, open).
+- Git state: `main`, HEAD `ff5222e`; the rest of Phase 06 is uncommitted.

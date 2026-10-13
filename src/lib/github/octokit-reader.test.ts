@@ -312,3 +312,37 @@ describe("mapGitHubError", () => {
     expect(mapped.message).not.toContain(TOKEN);
   });
 });
+
+describe("live reader token scope (security-check L-1)", () => {
+  it("asks for contents read on one named repository and reports the repository ids GitHub granted", async () => {
+    const bodies: unknown[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(init?.body ? JSON.parse(String(init.body)) : undefined);
+      return new Response(
+        JSON.stringify({
+          token: TOKEN,
+          expires_at: new Date(Date.now() + 3600_000).toISOString(),
+          permissions: {
+            pull_requests: "read",
+            contents: "read",
+            metadata: "read",
+          },
+          repositories: [{ id: 42, name: "widgets" }],
+        }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch;
+    const live = createOctokitReader({
+      appId: "12345",
+      privateKey,
+      installationId: 99,
+      repositoryName: "widgets",
+      fetch: fetchImpl,
+    });
+    expect(await live.tokenRepositoryIds()).toEqual([42]);
+    expect(bodies[0]).toEqual({
+      repositories: ["widgets"],
+      permissions: { pull_requests: "read", contents: "read" },
+    });
+  });
+});

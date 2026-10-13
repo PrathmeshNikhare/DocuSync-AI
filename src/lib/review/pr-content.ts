@@ -1,5 +1,6 @@
 import { proseIssues } from "@/lib/patches/content";
 import type { EvidenceReference, ModelMeta } from "@/lib/schemas";
+import { segmentText } from "./visible-text";
 
 // The docs PR is authored by the App's bot, so nothing from the source PR, the
 // model or an operator may become Markdown, HTML, a link or a mention in it
@@ -30,9 +31,18 @@ export interface PrContent {
 const longestRun = (s: string) =>
   Math.max(0, ...(s.match(/`+/g) ?? []).map((r) => r.length));
 
+/**
+ * Invisible and bidi characters become `[U+XXXX]` markers, as in the review UI,
+ * so the bot's PR text can't read differently from its bytes.
+ */
+export const markHidden = (value: string): string =>
+  segmentText(value)
+    .map((s) => (s.kind === "text" ? s.text : `[${s.code}]`))
+    .join("");
+
 /** An inline code span that renders `value` literally (CommonMark code spans). */
 export function codeSpan(value: string): string {
-  const flat = value.replace(/[\r\n]+/g, " ");
+  const flat = markHidden(value).replace(/[\r\n]+/g, " ");
   const fence = "`".repeat(longestRun(flat) + 1);
   // A space each side is stripped again; it lets a value start or end with a backtick.
   const pad = /^[` ]|[` ]$/.test(flat) || flat === "" ? " " : "";
@@ -41,13 +51,17 @@ export function codeSpan(value: string): string {
 
 /** A fenced block no line of `value` can close early. */
 export function codeBlock(value: string): string {
-  const fence = "`".repeat(Math.max(3, longestRun(value) + 1));
-  return `${fence}text\n${value.replace(/\r\n?/g, "\n")}\n${fence}`;
+  const marked = markHidden(value);
+  const fence = "`".repeat(Math.max(3, longestRun(marked) + 1));
+  return `${fence}text\n${marked.replace(/\r\n?/g, "\n")}\n${fence}`;
 }
 
 /** For the title and commit message, which are not rendered as code. */
 const inert = (value: string) =>
-  value.replace(/[\r\n]+/g, " ").replace(/[@#]/g, "$&‍");
+  // Marked first: the zero-width joiner added after @ and # is ours.
+  markHidden(value)
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[@#]/g, "$&\u200d");
 
 const encodePath = (p: string) =>
   p.split("/").map(encodeURIComponent).join("/");

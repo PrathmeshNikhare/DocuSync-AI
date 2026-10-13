@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-script-removed",
+  "category": "package_script",
+  "description": "The lint:fix script is removed from package.json; CONTRIBUTING.md still tells contributors to run it.",
+  "files": [
+    {
+      "filename": "package.json",
+      "status": "modified",
+      "additions": 0,
+      "deletions": 1,
+      "patch": "@@ -4,5 +4,4 @@\n   \"scripts\": {\n     \"lint\": \"eslint .\",\n-    \"lint:fix\": \"eslint . --fix\",\n     \"test\": \"vitest\"\n   },"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "CONTRIBUTING.md": "# Contributing\n\nBefore opening a PR, run `npm run lint:fix` and `npm test`.\n"
+  },
+  "labels": {
+    "affected": ["CONTRIBUTING.md"]
+  }
+}

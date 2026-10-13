@@ -1,0 +1,27 @@
+# Never send secrets or local state into an image build. The Dockerfile copies
+# an explicit file list; these patterns are a second line of defence. `**/`
+# matters: in .dockerignore a bare `*.pem` matches only at the context root
+# (security-check L-1). Keep the secret entries in step with .gitignore.
+**/.env
+**/.env.*
+!.env.example
+**/.envrc
+**/.npmrc
+deploy/*.env
+**/*.pw
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.log
+# database dumps (password and session hashes, document content)
+**/*.dump
+**/*.backup
+**/*.sql.gz
+.git
+**/node_modules
+**/.next
+coverage
+test-results
+playwright-report
+docs/screenshots

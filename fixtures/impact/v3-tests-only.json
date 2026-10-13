@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-tests-only",
+  "category": "no_impact",
+  "description": "Only a test file changes; no documentation is affected.",
+  "files": [
+    {
+      "filename": "src/math.test.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -1,5 +1,5 @@\n import { add } from \"./math\";\n \n test(\"adds\", () => {\n-  expect(add(1, 2)).toBe(3);\n+  expect(add(2, 2)).toBe(4);\n });"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/testing.md": "# Testing\n\nRun `npm test`.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

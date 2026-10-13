@@ -1,0 +1,29 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-env-var-in-dotenv-example",
+  "category": "env_var",
+  "description": "A new required variable SMTP_HOST is added to .env.example and the mail module; the setup doc lists the required variables and lacks it.",
+  "files": [
+    {
+      "filename": ".env.example",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "patch": "@@ -1,1 +1,2 @@\n DATABASE_URL=\n+SMTP_HOST="
+    },
+    {
+      "filename": "src/mail.ts",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "patch": "@@ -1,2 +1,3 @@\n export const transport = createTransport({\n+  host: process.env.SMTP_HOST,\n });"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/setup.md": "# Setup\n\nRequired variables: `DATABASE_URL`.\n"
+  },
+  "labels": {
+    "affected": ["docs/setup.md"]
+  }
+}

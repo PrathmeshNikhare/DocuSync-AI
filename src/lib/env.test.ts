@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  getAppOrigin,
   getGitHubAppEnv,
   getMigrationDatabaseUrl,
   getOllamaEnv,
@@ -200,5 +201,67 @@ describe("getOllamaEnv", () => {
     const run = () => getOllamaEnv({ OLLAMA_MODEL: "llama3", [key]: value });
     expect(run).toThrow(`Invalid server environment: ${key}`);
     expect(run).not.toThrow(SECRET);
+  });
+});
+
+describe("getAppOrigin (Phase 06, behind a TLS proxy)", () => {
+  it("returns the configured origin, or undefined when unset", () => {
+    expect(getAppOrigin({})).toBeUndefined();
+    expect(getAppOrigin({ APP_ORIGIN: "" })).toBeUndefined();
+    expect(getAppOrigin({ APP_ORIGIN: "https://docs.example.com" })).toBe(
+      "https://docs.example.com",
+    );
+    expect(getAppOrigin({ APP_ORIGIN: "https://localhost:8443/" })).toBe(
+      "https://localhost:8443",
+    );
+  });
+
+  it("refuses anything that is not a bare http(s) origin, naming only the key", () => {
+    for (const bad of [
+      "https://docs.example.com/app",
+      "https://docs.example.com/?x=1",
+      "javascript:alert(1)",
+      "docs.example.com",
+    ]) {
+      expect(() => getAppOrigin({ APP_ORIGIN: bad })).toThrow(
+        /^Invalid server environment: APP_ORIGIN$/,
+      );
+    }
+  });
+});
+
+describe("getAppOrigin normalization (review L2)", () => {
+  it("normalizes case and default ports instead of refusing them", () => {
+    expect(getAppOrigin({ APP_ORIGIN: "https://Docs.Example.com" })).toBe(
+      "https://docs.example.com",
+    );
+    expect(getAppOrigin({ APP_ORIGIN: "https://docs.example.com:443" })).toBe(
+      "https://docs.example.com",
+    );
+    expect(getAppOrigin({ APP_ORIGIN: "http://localhost:80/" })).toBe(
+      "http://localhost",
+    );
+  });
+
+  it("still refuses a query, fragment or credentials", () => {
+    for (const bad of [
+      "https://docs.example.com/?",
+      "https://docs.example.com/#x",
+      "https://user:pw@docs.example.com",
+    ]) {
+      expect(() => getAppOrigin({ APP_ORIGIN: bad })).toThrow(
+        /^Invalid server environment: APP_ORIGIN$/,
+      );
+    }
+  });
+});
+
+describe("getOllamaEnv with an unparseable URL (review L7)", () => {
+  it("names only the key instead of throwing a raw TypeError", () => {
+    for (const v of ["not a url", "http://"]) {
+      expect(() =>
+        getOllamaEnv({ OLLAMA_BASE_URL: v, OLLAMA_MODEL: "m" }),
+      ).toThrow(/^Invalid server environment: OLLAMA_BASE_URL$/);
+    }
   });
 });

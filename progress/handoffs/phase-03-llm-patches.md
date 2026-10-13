@@ -94,3 +94,7 @@ Phase 03 is one commit on top of `65d3b0f`. To undo it without rewriting history
 - Phase 03 is PASS and committed (done).
 - Phase 04 (review UI) must persist proposals (`candidateId`), render model text and patches as plain text with invisible characters made visible, and run `validatePatch` on reviewer-edited patches. It must also bind approvals to `headSha`, `baseBlobSha` and the patch hash (docs/07 controls 9 and 10).
 - Live use still needs doc fetching (the Contents permission, symlink entries refused) and a runner with a total time budget (D-009, D-010).
+
+## Correction (2026-10-12, during Phase 06)
+
+This handoff says GitHub CI was not run because there was no remote. That was wrong: `origin` (github.com/PrathmeshNikhare/DocuSync-AI) existed, and GitHub Actions ran on this phase's commit. The run failed at `npm ci`: the lockfile, generated on Windows, lacked the optional `@emnapi` packages npm on Linux expects, so no check ran in CI. Fixed in Phase 06 by commit `ff5222e`, which also fixed a build failure hidden behind the install step. Local checks were unaffected.

@@ -269,3 +269,98 @@ GitHub is mocked at the `fetch` level by `src/test/fake-github.ts`: an in-memory
 - **PR body:** names DocuSync's commit.
 - **Mutation checks:** 3, all caught (parent check, compare before the PR, created PR head).
 - **Counts:** `npm run test:db` 109.
+
+## Phase 06 evaluation and tests (implemented)
+
+- **Held-out dataset `impact-v3`:**
+  - 14 scenarios (`fixtures/impact/v3-*.json`), labelled before the engine or model ran on them;
+  - label hash `d8b4e802…c25`, recorded in the phase log before the first run;
+  - the engine was not changed in response;
+  - same author as the engine, so "held-out" means pre-registered, not independent.
+- **Deterministic results** (`npm run eval:impact`, `impact-baseline.md`):
+
+  | Scope | TP | FP | FN | TN | Precision | Recall |
+  |---|---|---|---|---|---|---|
+  | All 35 scenarios | 19 | 2 | 4 | 43 | 90.5% | 82.6% |
+  | `impact-v3` only | 7 | 1 | 3 | 17 | 87.5% | 70.0% |
+
+  The `impact-v3` misses are a CLI option rename, a Dockerfile port and a newly added route; the false positive is a generic word.
+- **Model-assisted** (`OLLAMA_MODEL=llama3.2:3b npm run eval:llm`, `llm-assisted.md`):
+  - **flagging:** identical to deterministic;
+  - **patches:** 20 requested, 14 validated, 6 rejected (`EDIT_FIND_NOT_FOUND` 5, `EDIT_FIND_AMBIGUOUS` 3, `EDIT_NO_OP` 1, `NO_CHANGE_FACTS` 1, `PATCH_UNSAFE_HTML` 1);
+  - **calls:** 41 model calls, median 2.9 s, p95 7.8 s;
+  - **patch labels:** `v3` patches are not labelled.
+- **Latency and failures** (`npm run eval:latency`, `impact-latency.md`): 700 timed analyses (35 × 20), median 0.06 ms, p95 0.18 ms, max 1.24 ms, 0 failures (values from the committed report; they vary between runs). Engine only, one laptop.
+- **New tests:**
+  - **Rate limits:** `rate-limit.test.ts` (2); the 61st decision request and the 11th create-PR request get 429.
+  - **Same origin behind a proxy:** `APP_ORIGIN` at the route and in env validation.
+  - **`db:check-grants`:** `grants.db.test.ts` (2), including a simulated post-restore re-grant.
+  - **L-1:** live reader token scope.
+  - **L-2:** hidden characters in PR text.
+  - **L3:** resume re-checks the binding.
+  - **L6:** step reported and logged.
+  - **L7:** focus while pending, after an error and after success.
+  - **L8:** partial analysis, in the fetcher, the DB and the view.
+  - **L-3:** early exit for terminal and locked outputs.
+- **How the process checks are evidenced:** the mutation runs, the Linux CI mirror, the deployment, fresh-setup and restore checks, and the screenshot capture were run during the session. Their results are recorded here and in `progress/PHASE-LOG.md`, but their raw logs are not committed. Treat them as observed, not reproducible artifacts, except the screenshots and the `docs/evaluation/` reports, which are committed outputs.
+- **Mutation checks (Phase 06):** 12, all caught (observed locally):
+  - the create-PR and decision limits, and the limiter logic;
+  - early exit and the resume binding check;
+  - PR-text markers;
+  - `APP_ORIGIN` use and its validation;
+  - the grants checker;
+  - the partial flag, panel focus and the live token scope.
+  - Not mutation-checked, because they live in scripts: the L-1 comparison in `analysis-run.ts` and the L9 transaction in `reviewer.ts`. Both were smoke-tested by hand.
+- **CI and operations:**
+  - **CI mirror:** the full pipeline ran in Linux containers matching `.github/workflows/ci.yml`, and GitHub Actions passed on `ff5222e`.
+  - **Fresh setup:** verified on a new volume.
+  - **Backup and restore:** verified, which found and fixed the default-privilege re-grant.
+  - **Reference deployment:** verified with Docker (docs/10).
+  - **Screenshots:** captured with Playwright (docs/11).
+- **Counts:** `npm test` 742, `npm run test:db` 116.
+
+### Phase 06 `/review` fixes
+
+- **M1 (`db:check-grants` coverage):**
+  - It now checks:
+    - whole-table privileges, including UPDATE on `repository_reviewers` and UPDATE/DELETE on `schema_migrations`;
+    - every column of the column-restricted tables, read from `information_schema`;
+    - TRUNCATE on every table;
+    - TEMPORARY on the database and CREATE on schema public.
+  - `grants.db.test.ts` has 6 tests, including a column-level and a database-level case.
+  - **Restore re-verified:** straight after a restore the check failed with "app role has TEMPORARY on the database" (`pg_dump` without `--create` drops it), and after the documented `REVOKE TEMPORARY` step it reported OK.
+- **M2 (claims):**
+  - **Data-driven report text:** `llm-assisted.md` now states its real scenario count, and the baseline's limits list the adversarial scenarios from the data (4).
+  - **Model re-run:** `eval:llm` was re-run. Counts are unchanged; latency is now median 2.9 s, p95 7.8 s.
+  - **Latency maximum:** corrected to 1.24 ms.
+  - **CI wording:** says which tests have run in GitHub Actions and which haven't yet.
+  - **Process evidence:** labelled as observed, with logs not committed.
+- **M3:** `*.dump`, `*.backup` and `*.sql.gz` are git- and docker-ignored, and the documented dump path is outside the repository.
+- **L1:** the serving Ollama has no route out. A one-shot `ollama-pull` service does the downloads; the compose config validates, but it was not pulled or run.
+- **L2:** `APP_ORIGIN` is normalized (case, default ports), and an invalid value gives `503 CONFIG_INVALID`, logged by code only. Tested in env and on both routes.
+- **L3:** `.dockerignore` now matches `.gitignore`'s secret entries.
+- **L5:** the init script's body runs in a subshell. When sourced, it fails cleanly without leaking `set -u` (checked in a `postgres:16-alpine` container). Percent-encoding is documented.
+- **L7:** an unparseable `OLLAMA_BASE_URL` gives the key-only env error (tested).
+- **Mutation checks:** 7 more, all caught: database TEMPORARY, every column, schema CREATE, `CONFIG_INVALID`, `APP_ORIGIN` normalization, the Ollama URL guard, the adversarial count. Not mutation-checked: the `llm-assisted.md` scenario count (no test renders that report).
+- **Deployment re-verified** with all fixes: healthy, `db:check-grants` OK, only the proxy published, no route out, the placeholder password refused, session and origin behaviour as before.
+- **Counts:** `npm test` 748, `npm run test:db` 120, also in the Linux CI mirror.
+
+### Phase 06 `/security-check` fixes
+
+- **M-A (public surface):** the reference Caddyfile now has a webhook-only public site and a private reviewer-UI site. Deployment re-verification:
+  - **Public site:** 404 for `/login`, `/api/health`, `/api/reviews/…` and `/`; an unsigned webhook reaches the app (503 `NOT_CONFIGURED`, no secret set).
+  - **UI site:** health 200 with HSTS; a session reaches the database; the same-origin PATCH passes; PATCHes from the public origin and from `evil.example` get 403.
+- **L-1 (secrets in images):**
+  - **The fix:** the Dockerfile copies an explicit list, and `.dockerignore` uses `**/` patterns.
+  - **The check:** dummy secret files were planted in nested folders while both images were rebuilt. None were found in either image, and a positive control confirmed the search works.
+  - **Found along the way:** the first check had inspected a stale migrate image, because `up --build` skips profile services. The docs and the verification now use `run --build`.
+- These are manual verifications with Docker. Their logs are not committed.
+
+### Phase 06 `/security-check` fixes, round 2
+
+- **L-2 (`db:check-grants`):** 2 new DB tests; a single-column INSERT on `reviewers` and a single-column UPDATE on `patch_proposals.patch_text` are reported. Reverting the fix makes both fail (mutation check).
+- **L-3, L-5 (deployment init):** with the unedited env examples, init refused with its message. After the automatic restart, the app role was refused with both the committed placeholder and the `REPLACE_…` value.
+- **L-6 (screenshot script):** a temporary live-labelled analysis was refused with `NOT_FIXTURE_DATA`. No decision was recorded and no file written. The screenshots were then re-captured from fixture data and checked by eye.
+- **Info:** browser sign-in through the private UI site was verified with Playwright, with and without a spoofed `X-Forwarded-Host`.
+- **Full deployment re-check:** passed again with all fixes.
+- **Counts:** `npm test` 748, `npm run test:db` 122, also in the Linux CI mirror.

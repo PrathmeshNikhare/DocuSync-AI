@@ -110,3 +110,15 @@ Record material decisions. Do not use this file as a daily diary.
   - **PR bodies:** reviewers appear by display name; untrusted text is rendered only in code spans or blocks.
 - Alternatives: signed decisions or HMAC-keyed sessions (a secret outside the database; more work); a separate write App; a docs PR against the default branch; a background runner; writes on accept without a separate action.
 - Consequences: no write without a fresh, explicit, server-recorded approval matching GitHub's current state. A stolen App private key is limited only by GitHub-side controls, so docs/10 recommends rulesets and optionally a separate write App. Writes are verified against mocks only until a live App is available.
+
+## D-014 — Phase 06 scope: reference deployment, Playwright screenshots, live GitHub deferred
+- Status: Accepted (user-approved 2026-10-12)
+- Date: 2026-10-12
+- Context: Phase 06 asks for deployment compatible with private Ollama, real screenshots and a truthful demo, rate limits and kill switches, and security evidence. There is no hosting target or GitHub App in this environment.
+- Decision:
+  - **Deployment:** a reference private-network setup only (app, Postgres and Ollama on one private network behind a TLS proxy), documented and verified locally with a production compose profile. Real hosting is NOT RUN.
+  - **Screenshots:** `@playwright/test` is added as a devDependency, with a script that captures real screenshots of the local app. Fixture data and mocked GitHub states are labelled in them.
+  - **Live GitHub:** a live write stays NOT RUN, and the demo marks GitHub steps as mocked.
+  - **Phase 05 follow-ups fixed in this phase:** security-check L-1, L-2 and L-3, and `/review` L3, L6, L7, L8 and L9.
+- Alternatives: deploying to user-provided infrastructure; screenshots with session-only browser tooling (not reproducible); setting up a live App now.
+- Consequences: the demo and docs must label mocked steps. The GitHub write path remains verified against a fake only.

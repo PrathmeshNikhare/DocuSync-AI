@@ -15,9 +15,12 @@
     "test:db": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run --project db",
     "test:ollama": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run --project ollama",
     "db:migrate": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/migrate.ts",
+    "db:check-grants": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/check-grants.ts",
     "ingest": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/ingest.ts",
     "analyze": "node --import tsx scripts/analyze.ts",
     "eval:impact": "node --import tsx scripts/eval-impact.ts",
+    "eval:latency": "node --import tsx scripts/eval-latency.ts",
+    "screenshots": "node --import tsx scripts/screenshots.ts",
     "propose": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/propose.ts",
     "eval:llm": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/eval-llm.ts",
     "analysis:run": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/analysis-run.ts",
@@ -42,6 +45,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/turbopack": "^4",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",

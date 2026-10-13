@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "impact-v3",
+  "id": "v3-dependency-patch-bump",
+  "category": "no_impact",
+  "description": "A dependency gets a patch-version bump; the install doc does not mention dependency versions.",
+  "files": [
+    {
+      "filename": "package.json",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -10,3 +10,3 @@\n   \"dependencies\": {\n-    \"zod\": \"4.1.11\"\n+    \"zod\": \"4.1.12\"\n   },"
+    }
+  ],
+  "docs": {
+    "README.md": "# Example service\n\nA small example service.\n\n## Getting started\n\nRun `npm install`, then `npm run dev`.\n",
+    "docs/install.md": "# Install\n\nRequires Node.js 24. Run `npm install`.\n"
+  },
+  "labels": {
+    "affected": []
+  }
+}

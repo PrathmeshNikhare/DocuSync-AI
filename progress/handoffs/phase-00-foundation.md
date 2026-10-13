@@ -99,3 +99,7 @@ The harness baseline is commit `7045a66`, and Phase 00 is commit `8762d4f` plus 
 - Deferred review and security items acknowledged by the user.
 - Ideally, CI green on GitHub once a remote exists.
 - For Phase 01: decide how to resolve the port-5432 conflict, and create a GitHub App or test fixtures. Phase 01 is read-only ingestion, so no write permissions.
+
+## Correction (2026-10-12, during Phase 06)
+
+This handoff says GitHub CI was not run because there was no remote. That was wrong: `origin` (github.com/PrathmeshNikhare/DocuSync-AI) existed, and GitHub Actions ran on this phase's commit. The run passed. Local checks were unaffected.

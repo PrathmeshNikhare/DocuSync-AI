@@ -100,6 +100,15 @@ export function AnalysisView({ analysis }: { analysis: Analysis }) {
           {model.text}
         </Notice>
       )}
+      {analysis.docsPartial && (
+        <Notice
+          tone="warning"
+          title="Partial analysis: some documentation could not be read"
+        >
+          Documents that could not be read were not checked, so affected
+          documents may be missing from this list. The reasons are below.
+        </Notice>
+      )}
       {analysis.missingContext.length > 0 && (
         <Notice
           tone="warning"

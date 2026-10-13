@@ -168,6 +168,9 @@ export function renderReport(
   }
   const row = (name: string, c: Counts) =>
     `| ${name} | ${c.tp} | ${c.fp} | ${c.fn} | ${c.tn} | ${pct(precision(c))} | ${pct(recall(c))} |`;
+  const adversarial = scenarios
+    .filter((s) => s.category.startsWith("known_"))
+    .map((s) => `\`${s.id}\``);
   const lines = [
     "# Impact engine baseline (deterministic)",
     "",
@@ -205,10 +208,11 @@ export function renderReport(
     "",
     "## Limits of this dataset",
     "",
-    "- Small and synthetic: every scenario was written for this project, and the same author wrote the labels and the engine. Labels were written before the engine existed (the dataset is not yet committed to git), but the dataset is not independent and is not a held-out test set.",
+    "- Small and synthetic: every scenario was written for this project, and the same author wrote the labels and the engine. The `impact-v1` labels were written before the engine existed. The dataset is not independent, and only `impact-v3` (below) was kept out of tuning.",
     "- These numbers describe these fixtures only. They do not estimate performance on real repositories and must not be quoted as such.",
-    "- Two scenarios are deliberately adversarial (`known_false_positive`, `known_false_negative`) to show the deterministic baseline's blind spots: generic words that collide with exported names, and behaviour changes that leave no name, path or key in the diff.",
+    `- ${adversarial.length} scenarios are deliberately adversarial (${adversarial.join(", ")}): their categories start with \`known_\` and show the deterministic baseline's blind spots (generic words that collide with exported names, behaviour changes that leave no name, path or key in the diff, files the engine does not parse).`,
     "- `impact-v2` holds regression scenarios written for specific review findings (dependency bumps, CI workflows, self-documenting PRs, docs linked from edited docs, multi-hunk `package.json`, root and dynamic routes). They were labelled before the fixes and scored TP 2, FP 6, FN 1, TN 5 on engine `deterministic-0.1.0`. A perfect score on them after the fixes shows the fixes work, not that the engine generalizes.",
+    "- `impact-v3` was written and labelled in Phase 06 before the engine or model was run on it (label hash in `progress/PHASE-LOG.md`), and the engine was not changed in response. It is the only set not used for tuning, so its row is the closest thing here to a held-out result. It is still small and synthetic, written by the same author.",
     "- Only TypeScript/JavaScript sources, `.env*` files, `package.json` scripts and JSON/YAML/TOML keys are understood. Other languages contribute file-path signals only.",
     "",
   ];

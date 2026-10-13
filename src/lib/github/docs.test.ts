@@ -56,9 +56,10 @@ describe("fetchDocsAtHead", () => {
       { path: "AGENTS.md", content: "agent instructions" },
       { path: "docs", type: "tree", mode: "040000", sha: "b".repeat(40) },
     ]);
-    const { docs, notes } = await fetchDocsAtHead(r, ref, HEAD);
+    const { docs, notes, partial } = await fetchDocsAtHead(r, ref, HEAD);
     expect(docs.map((d) => d.path)).toEqual(["README.md", "docs/a.md"]);
     expect(notes).toEqual([]);
+    expect(partial).toBe(false);
     expect(calls[0]).toBe(`tree ${HEAD}`);
     expect(calls.some((c) => c.includes(gitBlobSha("code")))).toBe(false);
   });
@@ -102,8 +103,9 @@ describe("fetchDocsAtHead", () => {
   it("notes a truncated tree and skips oversized docs without fetching them", async () => {
     const big = "x".repeat(200_001);
     const { r, calls } = reader([{ path: "docs/big.md", content: big }], true);
-    const { docs, notes } = await fetchDocsAtHead(r, ref, HEAD);
+    const { docs, notes, partial } = await fetchDocsAtHead(r, ref, HEAD);
     expect(docs).toEqual([]);
+    expect(partial).toBe(true);
     expect(notes[0]).toContain("truncated");
     expect(notes[1]).toContain("larger than");
     expect(calls).toEqual([`tree ${HEAD}`]);

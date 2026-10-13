@@ -48,9 +48,13 @@ const ollamaEnvSchema = z
     OLLAMA_BASE_URL: unsetIfEmpty(
       z
         .url({ protocol: /^https?$/ })
-        .refine((u) => !new URL(u).username && !new URL(u).password, {
-          message: "Credentials in the URL are not allowed",
-        })
+        .refine(
+          (u) =>
+            URL.canParse(u) && !new URL(u).username && !new URL(u).password,
+          {
+            message: "Credentials in the URL are not allowed",
+          },
+        )
         .default("http://127.0.0.1:11434"),
     ),
     OLLAMA_MODEL: unsetIfEmpty(
@@ -73,6 +77,9 @@ const ollamaEnvSchema = z
   })
   .refine(
     (e) =>
+      // Unparseable values already failed the field check (named by key);
+      // Zod still runs this refine, which must not throw a raw TypeError.
+      !URL.canParse(e.OLLAMA_BASE_URL) ||
       new URL(e.OLLAMA_BASE_URL).protocol === "https:" ||
       isLoopback(e.OLLAMA_BASE_URL) ||
       e.OLLAMA_ALLOW_INSECURE_HTTP === "true",
@@ -164,6 +171,48 @@ export function getAllowedInstallationIds(
 export const writesEnabled = (
   source: Record<string, string | undefined> = process.env,
 ): boolean => source.GITHUB_WRITES_ENABLED === "true";
+
+/**
+ * The public origin browsers use (e.g. https://docs.example.com), when the app
+ * runs behind a TLS proxy and sees a different URL itself. Unset: the request's
+ * own URL is the origin. Read on every call.
+ */
+export function getAppOrigin(
+  source: Record<string, string | undefined> = process.env,
+): string | undefined {
+  const env = parseEnv(
+    z.object({
+      APP_ORIGIN: unsetIfEmpty(
+        z
+          .url({ protocol: /^https?$/ })
+          // Zod runs refinements after a failed url check too, so parse safely.
+          // Case and default ports are normalized below; a path, query,
+          // fragment or credentials mean the value is not an origin.
+          .refine(
+            (u) => {
+              if (!URL.canParse(u)) return false;
+              const url = new URL(u);
+              return (
+                url.pathname === "/" &&
+                !url.search &&
+                !url.hash &&
+                !url.username &&
+                !url.password &&
+                !u.endsWith("?") &&
+                !u.endsWith("#")
+              );
+            },
+            {
+              message: "APP_ORIGIN must be an origin (scheme, host, port) only",
+            },
+          )
+          .optional(),
+      ),
+    }),
+    source,
+  );
+  return env.APP_ORIGIN && new URL(env.APP_ORIGIN).origin;
+}
 
 /** The App's slug names its bot account, `<slug>[bot]`, which authors our PRs. */
 export function getGitHubAppSlug(
