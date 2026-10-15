@@ -135,9 +135,8 @@ Measured on 2026-10-12. Every number comes from a command in this repository, on
 - **Reference deployment limitations** (docs/10):
   - migrations and operator commands run as the Postgres superuser;
   - the app doesn't assert its database role;
-  - Ollama has no authentication on the private network;
-  - images and Actions are tag-pinned, not digest- or SHA-pinned;
-  - no compose hardening;
+  - Ollama has no authentication of its own (it shares an internal network with the app only);
+  - Postgres and Ollama containers are not read-only or capability-dropped;
   - the reviewer UI must stay on a private network: no per-IP limiter is shipped.
 - **Not built:** MFA, signed decisions and decision expiry.
 - **Deployment:** the reference deployment was verified locally only, not on a hosted environment.

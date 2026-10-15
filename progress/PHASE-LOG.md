@@ -457,3 +457,17 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
 - Decisions: D-014.
 - Git state: `main`; Phase 06 committed as `dacb02e` and pushed; the PASS record is a follow-up commit.
 - Handoff path: `progress/handoffs/phase-06-evaluation-hardening.md`
+
+### 2026-10-15 — After Phase 06 (PASS) — deployment limitations fixed, live read run
+- Scope: the user asked for the live GitHub App run and the documented deployment limitations. This is follow-up work after the Phase 06 gate, not a new phase.
+- Changes:
+  - **Compose and Dockerfile:** images pinned by `@sha256:` digest; Ollama on its own internal `model` network (app only); the proxy and app read-only, `cap_drop: ALL`, `no-new-privileges`.
+  - **CI:** both Actions pinned by commit SHA; the Postgres service pinned by digest.
+  - **`db:check-grants`:** reports app role attributes and memberships; 1 new DB test.
+  - **Docs:** 07, 10, 13 and README.
+- Verification:
+  - **Deployment (Docker):** the full check passed again; read-only roots, `NoNewPrivs` and capabilities confirmed in the running containers; sign-in through the proxy still works.
+  - **Commands:** `test:db` 123 passed; `lint`, `format:check` and `db:check-grants` pass.
+  - **Live read run (sandbox repo, private App):** ingest and analysis worked; the engine flagged the right doc; with `llama3.2:3b` the patch was rejected by the validator in 3 runs.
+- NOT RUN: GitHub writes against a live App (no validated proposal), the `ollama` container in the deployment, a non-superuser owner (needs a decision).
+- Incident: part of the sandbox App's private key was printed into the chat transcript by a masking command. The user was told to rotate it, and did.

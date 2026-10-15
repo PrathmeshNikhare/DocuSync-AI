@@ -53,8 +53,8 @@ GitHub credentials, repository source and documentation, user identity, review d
     - Verified on a temporary live-labelled analysis: `NOT_FIXTURE_DATA`, no decision recorded, no file written.
   - **Documented, not fixed:**
     - L-4: superuser for migrations and operator commands, and no app-role assertion;
-    - Ollama without authentication;
-    - tag-pinned images and Actions (docs/10, "Known limitations of the reference deployment").
+    - Ollama without authentication of its own.
+  - **Fixed afterwards (2026-10-15):** Ollama on its own internal network, digest- and SHA-pinned images and Actions, read-only and capability-dropped proxy and app containers, app role attributes in `db:check-grants` (docs/10).
 - **No secrets in images (security-check L-1, fixed):** the Dockerfile copies an explicit file list, and `.dockerignore` excludes secret patterns at any depth. Re-verified: dummy keys, password files, a dump and an `.npmrc` planted in nested folders were absent from both rebuilt images.
 - **Same-origin check behind a proxy:** `APP_ORIGIN` (validated as a bare origin). It was found during the deployment verification, where every decision through the TLS proxy got `FORBIDDEN_ORIGIN`.
 - **Reference deployment:** only the proxy is published, and Postgres and Ollama sit on an internal network with no route out. Models are pulled by a separate one-shot `ollama-pull` service that has egress but never sees prompts (fixed after `/review` L1; the first version gave the serving Ollama a permanent route out). The app role gets its own password at first start; the first version of the init script left the placeholder password in place, which this verification found and fixed (docs/10).

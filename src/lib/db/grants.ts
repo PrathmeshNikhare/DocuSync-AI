@@ -117,5 +117,33 @@ export async function checkAppGrants(db: Querier): Promise<string[]> {
     ])
   )
     problems.push("app role has CREATE on schema public");
+
+  // Role attributes and memberships (security-check L-4): the app role must not
+  // be able to widen its own access, however its grants look.
+  const { rows: roles } = await db.query<{
+    rolsuper: boolean;
+    rolcreatedb: boolean;
+    rolcreaterole: boolean;
+    rolreplication: boolean;
+    rolbypassrls: boolean;
+    memberships: number;
+  }>(
+    `SELECT rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls,
+            (SELECT count(*)::int FROM pg_auth_members m WHERE m.member = r.oid) AS memberships
+       FROM pg_roles r WHERE rolname = $1`,
+    [APP],
+  );
+  const role = roles[0];
+  if (!role) problems.push("app role does not exist");
+  else {
+    if (role.rolsuper) problems.push("app role is a superuser");
+    if (role.rolcreatedb) problems.push("app role can create databases");
+    if (role.rolcreaterole) problems.push("app role can create roles");
+    if (role.rolreplication) problems.push("app role can replicate");
+    if (role.rolbypassrls)
+      problems.push("app role bypasses row-level security");
+    if (role.memberships > 0)
+      problems.push("app role is a member of other roles");
+  }
   return problems;
 }

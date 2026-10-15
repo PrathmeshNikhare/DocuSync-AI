@@ -116,4 +116,29 @@ describe("single-column grants on whole-table limits (security-check L-2)", () =
       "app role has UPDATE on patch_proposals",
       "REVOKE UPDATE (patch_text) ON patch_proposals FROM docusync_app",
     ));
+
+  it("reports role attributes and memberships that let the app role widen its access", () =>
+    withOwner(ownerUrl, async (c) => {
+      for (const [attr, off, problem] of [
+        ["CREATEDB", "NOCREATEDB", "app role can create databases"],
+        ["CREATEROLE", "NOCREATEROLE", "app role can create roles"],
+        ["BYPASSRLS", "NOBYPASSRLS", "app role bypasses row-level security"],
+      ] as const) {
+        await c.query(`ALTER ROLE docusync_app ${attr}`);
+        try {
+          expect(await checkAppGrants(c)).toContain(problem);
+        } finally {
+          await c.query(`ALTER ROLE docusync_app ${off}`);
+        }
+      }
+      await c.query("GRANT pg_read_all_data TO docusync_app");
+      try {
+        expect(await checkAppGrants(c)).toContain(
+          "app role is a member of other roles",
+        );
+      } finally {
+        await c.query("REVOKE pg_read_all_data FROM docusync_app");
+      }
+      expect(await checkAppGrants(c)).toEqual([]);
+    }));
 });

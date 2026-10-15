@@ -15,7 +15,7 @@
 2. Subscribe to the **Pull request** event. Set the webhook URL to `https://<host>/api/webhooks/github` and a random secret of at least 20 characters (store it as `GITHUB_WEBHOOK_SECRET`).
 3. Generate a private key and store it as `GITHUB_APP_PRIVATE_KEY`, either as a one-line PEM with `\n` escapes or as a quoted multi-line value. Set `GITHUB_APP_ID`.
 4. Install the App on a test repository. The installation id is in the webhook payload (`installation.id`) and in the App's installation URL. Add it to `GITHUB_ALLOWED_INSTALLATION_IDS` (comma-separated). Deliveries from any other installation are ignored, and the webhook returns 503 until the allowlist is set.
-5. Check it with `npm run ingest -- --live owner/repo#<number> --installation <id>`.
+5. Check it with `npm run ingest -- --live owner/repo#<number> --installation <id>`. The npm scripts load `.env.local` only (not `.env`), so put the `GITHUB_*` values there; set `OLLAMA_MODEL` too for proposals. The private key must include its `-----BEGIN … PRIVATE KEY-----` and `-----END …-----` lines.
 
 Even if the App is granted more permissions, the reader requests tokens with `pull_requests: read` only.
 
@@ -36,7 +36,7 @@ Design: docs/13. Writes stay off unless `GITHUB_WRITES_ENABLED=true`; any other 
    - close the bot's PRs and delete leftover `docusync/` branches by hand;
    - review `github_outputs` and `github_output_attempts`.
 
-Not verified against a live GitHub App in this repository: writes were tested against a fetch-level fake of GitHub only.
+Verified against a live GitHub App on 2026-10-15, read path only: a private sandbox repository, a private App installed on it, `npm run ingest -- --live` and `npm run analysis:run -- --live` on a same-repository PR (an env var rename). The deterministic engine flagged the right doc (`likely_affected`, rules `env_var_removed` and `undocumented_env_var`). With `llama3.2:3b` the proposed patch was rejected by the validator (`EDIT_FIND_NOT_FOUND`) in 3 runs, so no proposal reached review. **GitHub writes have still never run live:** the branch, commit and PR calls were tested against a fetch-level fake only.
 
 ### Failed webhook deliveries
 
@@ -198,11 +198,14 @@ Record request/analysis IDs, durations, status, retry count, model/provider and 
 
 ## Known limitations of the reference deployment
 
+Fixed after the Phase 06 security check (verified with Docker, 2026-10-15):
+- **Ollama isolation:** Ollama sits alone with the app on an internal `model` network. Postgres and the migrate job can no longer reach it. It still has no authentication of its own, so only the app may join that network. Checked in the resolved compose config; the Ollama container itself was not started here.
+- **Digest pinning:** the compose images (`caddy`, `postgres`, `ollama`), both Dockerfile stages (`node:24-slim`) and the CI Postgres service are pinned by `@sha256:` digest. The two GitHub Actions are pinned by commit SHA. All digests resolved on 2026-10-15; the tags are kept next to them. Update them deliberately (for example with Dependabot); the pinned images won't pick up security patches by themselves.
+- **Container hardening:** the proxy and app run with a read-only root filesystem, `cap_drop: ALL` and `no-new-privileges` (the proxy keeps only `NET_BIND_SERVICE`; scratch space is tmpfs). Verified in the running containers: writes to `/` fail, `/tmp` works for the app, and sign-in through the proxy still works. Postgres and Ollama are not hardened this way, because they write to their data directories and run their own entrypoints.
+- **App role attributes:** `db:check-grants` also reports a superuser, `CREATEDB`, `CREATEROLE`, replication or `BYPASSRLS` app role, and any role membership (tested).
+
 Documented, not fixed (security check, Phase 06):
 - **Superuser for privileged operations (L-4):** migrations, `db:check-grants`, the `reviewer:*` commands and restores run as `POSTGRES_USER`, the bootstrap superuser.
-  - A separate non-superuser schema owner is not set up.
-  - The app does not assert that `DATABASE_URL` connects as `docusync_app`. Never give the app the owner URL: `db:check-grants` checks the role by name and would not notice.
-- **Ollama has no authentication.** Any container on the `private` network (the app, postgres, migrate) can call it. Keep that network to these services.
-- **Image pinning:** images are pinned by tag (`caddy:2.10.0`, `postgres:16-alpine`, `node:24-slim`, `ollama/ollama:0.40.3`), not by digest. `node:24-slim` moves with patch releases, and the `ollama/ollama:0.40.3` tag was never pulled here. Pin digests with an update tool (for example Dependabot) before production use.
-- **Actions pinning:** GitHub Actions in `.github/workflows/ci.yml` are pinned by tag (`@v4`), not by commit SHA.
-- **No compose hardening:** no `read_only`, `cap_drop` or `no-new-privileges`.
+  - A separate non-superuser schema owner is not set up. That is a permission-model change needing a decision.
+  - The app does not assert at startup that `DATABASE_URL` connects as `docusync_app`. Never give the app the owner URL. `db:check-grants` checks the role by name, so it would not notice; it now does check that role's attributes.
+- **Postgres and Ollama containers** are not read-only or capability-dropped (see above).

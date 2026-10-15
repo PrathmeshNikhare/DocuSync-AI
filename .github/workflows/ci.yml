@@ -15,7 +15,7 @@ jobs:
     services:
       # Ephemeral CI database; the credentials are the documented local placeholders.
       postgres:
-        image: postgres:16-alpine
+        image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
         env:
           POSTGRES_USER: docusync
           POSTGRES_PASSWORD: change-me-local-only
@@ -32,12 +32,12 @@ jobs:
       TEST_MIGRATION_DATABASE_URL: postgres://docusync:change-me-local-only@localhost:5432/docusync_test
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Don't leave the token in .git/config while PR code (npm ci, build) runs.
           persist-credentials: false
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
           cache: npm

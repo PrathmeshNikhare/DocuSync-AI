@@ -15,7 +15,7 @@ name: docusync
 
 services:
   proxy:
-    image: caddy:2.10.0
+    image: caddy:2.10.0@sha256:133b5eb7ef9d42e34756ba206b06d84f4e3eb308044e268e182c2747083f09de
     # Reference: loopback only. On a real host publish 443 (and 80 for ACME) for
     # the webhook-only public site, and publish 8444 (the reviewer UI) only on a
     # private interface, VPN or SSH tunnel, never to the internet.
@@ -26,6 +26,12 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     networks: [edge]
+    # Hardening (docs/10): nothing writes outside the volume and tmpfs.
+    read_only: true
+    tmpfs: ["/config"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
     depends_on:
       app:
         condition: service_healthy
@@ -38,7 +44,12 @@ services:
     # DATABASE_URL (app role), GitHub and Ollama settings; never the owner URL.
     env_file: app.env
     expose: ["3000"]
-    networks: [edge, private]
+    # `model` reaches only Ollama; Postgres stays on `private`.
+    networks: [edge, private, model]
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,7 +80,7 @@ services:
     profiles: ["migrate"]
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     env_file: postgres.env
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -86,17 +97,17 @@ services:
   # Prompts carry repository content: Ollama is never published and, while it
   # serves, has no route out (internal network only).
   ollama:
-    image: ollama/ollama:0.40.3
+    image: ollama/ollama:0.40.3@sha256:adca95a12c2b386a8f9a995e7fa0600e187e3323b5e5522f5a6c3b1ec73eff99
     volumes:
       - ollama:/root/.ollama
-    networks: [private]
+    networks: [model]
     profiles: ["model"]
     restart: unless-stopped
 
   # One-shot model download onto the shared volume. The only service with
   # internet egress besides the app; it never sees prompts. Stop `ollama` first.
   ollama-pull:
-    image: ollama/ollama:0.40.3
+    image: ollama/ollama:0.40.3@sha256:adca95a12c2b386a8f9a995e7fa0600e187e3323b5e5522f5a6c3b1ec73eff99
     volumes:
       - ollama:/root/.ollama
     networks: [model-egress]
@@ -112,6 +123,9 @@ services:
 networks:
   edge: {}
   private:
+    internal: true
+  # App <-> Ollama only: Ollama has no authentication, so nothing else joins.
+  model:
     internal: true
   model-egress: {}
 
