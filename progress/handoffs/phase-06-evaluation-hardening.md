@@ -71,7 +71,8 @@ Every security threat class in the spec maps to passing tests, and CI runs green
 | Phase 06 mutation checks (12 + 7 for the review fixes) | all caught (observed locally; logs not committed) | PASS |
 | `/review` | no High; M1–M3, L1–L3, L5, L7 fixed; L4, L6, L8 and Info open | DONE |
 | `/security-check` | no High; M-A, L-1, L-2, L-3, L-5, L-6 and the cheap Info items fixed and re-verified; L-4 and the rest documented | DONE |
-| Hosted deployment; live GitHub App write; `ollama` container in the deployment | — | NOT RUN |
+| Live GitHub App read and one write, sandbox repo (2026-10-15) | analysis flagged the right doc; one validated proposal; accepted by a reviewer; PR opened, not merged; no ruleset used | PASS (single run) |
+| Hosted deployment; `ollama` container in the deployment | — | NOT RUN |
 
 ## Exit criteria (phases/06)
 
@@ -146,7 +147,7 @@ D-014: reference deployment only, Playwright screenshots, live GitHub deferred, 
 ## Risks and limitations
 
 - **Intermittent unit test (open):** in 1 of 4 full local `npm test` runs on 2026-10-13, `llm.test.ts` › "times out while reading a body that never ends" hung for the 20 s test timeout although its own timeout is 300 ms. It passed 15/15 alone, 3/3 in later full runs, and in the CI mirror. A forced-GC repro did not reproduce it. The cause is unknown; the test is unchanged.
-- **GitHub writes have never run live.** Rulesets (docs/10) are required before enabling them.
+- **GitHub writes ran live once**, in a private sandbox without the required ruleset (docs/10). Rulesets are required before enabling them for real.
 - **No runner for webhook-queued analyses (D-009).**
 - **Single-instance limits:** the decision and create-PR rate limits are in-process. A per-IP limiter at the proxy is required.
 - **The deployment was verified locally only.** No real certificate; Ollama in compose not pulled or run; the `ollama/ollama:0.40.3` tag is unverified.
@@ -167,4 +168,4 @@ D-014: reference deployment only, Playwright screenshots, live GitHub deferred, 
 
 - Re-run `npm test`, `npm run test:db` and `npm run build`, and check the latest GitHub Actions run.
 - Check `package-lock.json` still has `node_modules/@emnapi/core` and `@emnapi/runtime` before any commit made on Windows.
-- No further phase is specified. The open items are the NOT RUN rows above (live GitHub App write, hosted deployment, the `ollama` container), the documented limitations in docs/10, and the intermittent `llm.test.ts` hang. Ask the user which, if any, to take on.
+- No further phase is specified. The open items are the NOT RUN rows above (hosted deployment, the `ollama` container, a ruleset-protected live run), the documented limitations in docs/10, and the intermittent `llm.test.ts` hang. Ask the user which, if any, to take on.

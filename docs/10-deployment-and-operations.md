@@ -36,7 +36,12 @@ Design: docs/13. Writes stay off unless `GITHUB_WRITES_ENABLED=true`; any other 
    - close the bot's PRs and delete leftover `docusync/` branches by hand;
    - review `github_outputs` and `github_output_attempts`.
 
-Verified against a live GitHub App on 2026-10-15, read path only: a private sandbox repository, a private App installed on it, `npm run ingest -- --live` and `npm run analysis:run -- --live` on a same-repository PR (an env var rename). The deterministic engine flagged the right doc (`likely_affected`, rules `env_var_removed` and `undocumented_env_var`). With `llama3.2:3b` the proposed patch was rejected by the validator (`EDIT_FIND_NOT_FOUND`) in 3 runs, so no proposal reached review. **GitHub writes have still never run live:** the branch, commit and PR calls were tested against a fetch-level fake only.
+Verified against a live GitHub App on 2026-10-15, once, in a private single-owner sandbox repository with a private App:
+- **Read path:** `npm run ingest -- --live` and `npm run analysis:run -- --live` on a same-repository PR (an env var rename). The engine flagged the right doc (`likely_affected`, rules `env_var_removed` and `undocumented_env_var`).
+- **Write path:** with `llama3.2:3b`, a one-line doc and a PR that did not itself edit the doc, one patch passed validation. A reviewer accepted it and pressed **Create documentation PR…**. The server recorded one attempt, step `pr_opened`, a new `docusync/…` branch and a bot-authored PR targeting the source PR's branch. It was not merged.
+- **Earlier attempts without a proposal:** a doc the PR itself edits is not flagged (by design), and the 3B model's patches against a longer sentence failed validation (`EDIT_FIND_NOT_FOUND`) in 3 runs.
+- **Not covered:** this ran **without the required ruleset** (the account has no paid plan; the repository had a single owner and was throwaway), so the M-1 protection (nobody else can push to `docusync/**`) was not exercised. It was one run on one small repository. Idempotent retries, a revoked installation, a moved branch and the incident-response steps were not tried live.
+- **Environment trap:** the scripts and `next` read `.env.local`, which wins over `.env` for Next. Empty `GITHUB_*` values there override real ones and make the create-PR route return `WRITES_MISCONFIGURED` (503); repeated clicks then hit the 10-per-minute limit. Keep the GitHub values in `.env.local` only, and remove empty duplicates. `next dev` also looped on rebuilds on the development machine, so the test used `next build` and `next start`.
 
 ### Failed webhook deliveries
 

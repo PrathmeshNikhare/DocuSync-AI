@@ -351,7 +351,7 @@ To stop writes and contain damage:
 - **Diff pinning:** the PR file list is still fetched by PR number, not pinned to a commit (the A→B→A gap). Docs are pinned at `headSha`. A compare-based pin is a follow-up.
 - **Moving base branch:** the stacked base is the source head branch. If it moves after the checks, the docs PR is computed against the recorded head. GitHub shows the real diff, and a human reviews before merging.
 - **Actions minutes:** pushes and PRs made with an App token run the target repository's workflows. That costs Actions minutes but adds no new execution privilege.
-- **Not run live (writes):** writes are verified against mocks only. The read path ran against a live App on 2026-10-15 (docs/10): the engine's output was correct, and the 3B model's patch was rejected by the validator, so no proposal could be published.
+- **Run live once (2026-10-15):** the read path and one write (branch, commit, PR) ran against a live App in a private sandbox (docs/10), without the required ruleset. Everything else here is still verified against mocks only: retries, revocation, branch movement and incident response.
 
 ## Phase 06 changes
 

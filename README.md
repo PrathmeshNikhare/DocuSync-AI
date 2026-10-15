@@ -122,7 +122,7 @@ Measured on 2026-10-12. Every number comes from a command in this repository, on
 
 **Known limitations:**
 - **No runner:** webhooks only enqueue (D-009). Live analyses come from the CLI.
-- **GitHub writes never run live.** They are tested against a fake GitHub only. Before enabling them, set up the rulesets in docs/10.
+- **GitHub writes ran live once** (2026-10-15, a private sandbox repository, no ruleset, one PR; docs/10). Everything else is tested against a fake GitHub only. Before enabling them for real, set up the rulesets in docs/10.
 - **Deterministic blind spots** (from the `known_` scenarios and the `impact-v3` misses):
   - behaviour-only changes;
   - CLI option names;

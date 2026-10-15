@@ -471,3 +471,15 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
   - **Live read run (sandbox repo, private App):** ingest and analysis worked; the engine flagged the right doc; with `llama3.2:3b` the patch was rejected by the validator in 3 runs.
 - NOT RUN: GitHub writes against a live App (no validated proposal), the `ollama` container in the deployment, a non-superuser owner (needs a decision).
 - Incident: part of the sandbox App's private key was printed into the chat transcript by a masking command. The user was told to rotate it, and did.
+
+### 2026-10-15 — After Phase 06 (PASS) — live GitHub write run
+- Scope: the optional live run the user asked for, in a private throwaway repository with a private App.
+- Result: one write ran. Analysis of a same-repository PR produced one validated proposal; a granted reviewer accepted it and confirmed; the server recorded one attempt, step `pr_opened` (PR #3 in the sandbox), and the bot's branch and PR exist. Not merged.
+- Findings:
+  - **Not a product bug, but an operator trap:** empty `GITHUB_*` values in `.env.local` override real ones in `.env` for Next, giving `WRITES_MISCONFIGURED`; repeated clicks hit the create-PR rate limit. Documented (docs/10).
+  - **Behaviour as designed:** a doc the PR itself edits is not flagged.
+  - **Model quality:** `llama3.2:3b` failed validation in 3 runs on a longer sentence, and passed on a one-line doc.
+  - **Dev server:** `next dev` rebuild-looped on this machine; the test used a production build.
+- Not covered: the required ruleset (no paid plan), retries, revocation, branch movement, incident response.
+- Cleanup: server stopped; the temporary reviewer disabled and its password file deleted; the sandbox PR and branch are left for the user to close and delete by hand.
+- Git state: docs only, uncommitted.
