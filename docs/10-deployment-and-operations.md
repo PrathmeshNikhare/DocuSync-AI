@@ -127,32 +127,47 @@ docker compose -f deploy/compose.yml --profile model up -d ollama   # stop it fi
   - GitHub webhooks reaching the proxy.
 
 **First-start init** (both scripts run only when the data volume is first created):
-- **`deploy/initdb/01-app-role.sql`:** the deployment's own copy; dev and CI keep `db/init/01-app-role.sql`. It creates `docusync_app` **without login** and no test database.
+- **`deploy/initdb/01-app-role.sql`:** the deployment's own copy; dev and CI keep `db/init/01-app-role.sql`. It creates `docusync_app` and `docusync_owner`, both **without login**, and no test database. `docusync_owner` owns the database and is not a superuser: it can't create roles or databases, connect to other databases or read server files.
 - **`deploy/initdb/02-app-password.sh`:**
-  - refuses an unset, `REPLACE_…` or shorter-than-16-character `POSTGRES_PASSWORD` or `APP_DB_PASSWORD`;
-  - otherwise gives the app role `LOGIN` with its password.
+  - refuses an unset, `REPLACE_…` or shorter-than-16-character `POSTGRES_PASSWORD`, `OWNER_DB_PASSWORD` or `APP_DB_PASSWORD`, and refuses any two of them being equal;
+  - otherwise gives the app and owner roles `LOGIN` with their own passwords.
   - The password is read inside `psql` from the environment (`\getenv`), not passed as an argument, and the session doesn't log statements on error.
-- **Fails closed (security-check L-3, L-5):** if 02 fails, Postgres restarts and skips init, so the app role still can't log in.
-  - **Verified with the unedited `*.env.example` files:** init refused with the message, and after the restart the app role was refused with both the committed placeholder and the `REPLACE_…` value.
-  - **Residual:** the owner keeps whatever `POSTGRES_PASSWORD` the failed volume was created with. It is reachable only on the internal network. Fix `deploy/postgres.env` and recreate the volume (`docker compose -f deploy/compose.yml down -v`), as the error message says.
+- **Fails closed (security-check L-3, L-5):** if 02 fails, Postgres restarts and skips init, so the app and owner roles still can't log in.
+  - **Verified with the unedited `*.env.example` files:** init refused with the message, and after the restart the app and owner roles were refused with the committed placeholders.
+  - **Residual:** the bootstrap superuser keeps whatever `POSTGRES_PASSWORD` the failed volume was created with. It is reachable only on the internal network. Fix `deploy/postgres.env` and recreate the volume (`docker compose -f deploy/compose.yml down -v`), as the error message says.
 - **History:** a bug in the first version of 02 was found and fixed in this verification. `psql -c` doesn't substitute variables, so it left the placeholder password in place.
-- **The owner role:** `POSTGRES_USER`, the bootstrap superuser (see "Known limitations" below).
+- **Three roles, three passwords (security-check L-4):**
+  - `POSTGRES_USER` (`docusync`) is the bootstrap superuser. Only the init scripts and the Postgres healthcheck use it; its password is in `postgres.env` and nowhere else.
+  - `docusync_owner` runs migrations, `db:check-grants`, the `reviewer:*` commands and restores. `migrate.env` holds its URL.
+  - `docusync_app` is the app's role (`app.env`).
+  - The migrate job runs `db:check-grants -- --require-non-superuser`, which fails if the owner role is a superuser or can create roles or databases.
+  - Dev and CI still use a superuser owner (`db/init/01-app-role.sql`), so they test less strictly than the deployment. Use a new volume for an old deployment: the init scripts only run on first start.
+  - **Verified on 2026-10-16 (Docker, fresh volumes):**
+    - the migrate job applied all six migrations as `docusync_owner`, and `db:check-grants -- --require-non-superuser` reported OK;
+    - `docusync_owner` is not a superuser, can't create roles or databases, can't connect to the `postgres` database, can't read server files, and can create tables in `docusync`;
+    - over the network: each role accepts only its own password. The superuser password and the placeholders are refused for the owner, and the owner password is refused for the app role;
+    - neither `migrate.env` nor `app.env` contains the superuser password;
+    - `check-grants --require-non-superuser` fails when pointed at the superuser (5 problems);
+    - the unedited examples are refused at first start, and neither new role can log in afterwards;
+    - the full deployment check (ports, public and private sites, sign-in through the proxy, hardening) passed again.
+  - **Not verified:** loopback inside the Postgres container is trust-authenticated (official image), so password checks must go over the network, as above.
 - **Passwords in URLs:** percent-encode any URL-reserved characters in `APP_DB_PASSWORD` and the owner password when you put them into `DATABASE_URL` and `MIGRATION_DATABASE_URL`, or generate URL-safe passwords (for example base64url).
 - **The executable bit:** the init script works whether the entrypoint executes it or, without its executable bit, sources it: its body runs in a subshell (fixed after `/review` L5). Commit it executable anyway (`git add --chmod=+x deploy/initdb/02-app-password.sh`).
 
 ## Backup and restore (verified 2026-10-12)
 
 ```bash
+# Run as the schema owner: docusync_owner in the reference deployment (dev and CI use docusync).
 # Backup (custom format), as the owner:
 # Write it OUTSIDE the repository: it holds password and session hashes and document content.
-pg_dump -U docusync -d docusync -Fc -f /secure/backups/docusync-$(date +%F).dump
+pg_dump -U docusync_owner -d docusync -Fc -f /secure/backups/docusync-$(date +%F).dump
 
 # Restore into a new server whose roles already exist (01-app-role.sql ran):
-psql -U docusync -d docusync -c "ALTER DEFAULT PRIVILEGES FOR ROLE docusync IN SCHEMA public REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM docusync_app"
-pg_restore -U docusync -d docusync --exit-on-error /secure/backups/docusync-<date>.dump
-psql -U docusync -d docusync -c "ALTER DEFAULT PRIVILEGES FOR ROLE docusync IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO docusync_app"
+psql -U docusync_owner -d docusync -c "ALTER DEFAULT PRIVILEGES FOR ROLE docusync_owner IN SCHEMA public REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM docusync_app"
+pg_restore -U docusync_owner -d docusync --exit-on-error /secure/backups/docusync-<date>.dump
+psql -U docusync_owner -d docusync -c "ALTER DEFAULT PRIVILEGES FOR ROLE docusync_owner IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO docusync_app"
 # Database-level limits are not in the dump (pg_dump without --create); 0002 is not re-run.
-psql -U docusync -d docusync -c "REVOKE TEMPORARY ON DATABASE docusync FROM PUBLIC, docusync_app"
+psql -U docusync_owner -d docusync -c "REVOKE TEMPORARY ON DATABASE docusync FROM PUBLIC, docusync_app"
 npm run db:check-grants      # with MIGRATION_DATABASE_URL pointing at the restored database
 ```
 
@@ -163,6 +178,7 @@ npm run db:check-grants      # with MIGRATION_DATABASE_URL pointing at the resto
 - Observed on a test restore: the ACL on `repositories` went from `docusync_app=ard` to `arwd`, and the app role could update `github_repo_id`.
 - Suspending the default privileges during the restore keeps the table ACLs exactly as dumped.
 - `pg_dump` without `--create` does not carry database-level privileges either, so 0002's `REVOKE TEMPORARY` is lost on a new server; the restore re-applies it.
+- Re-verified on 2026-10-16 as `docusync_owner` (not a superuser): `pg_dump`, a new volume, the steps above, then `pg_restore` with `--exit-on-error`. Row counts and the ACLs matched, and `db:check-grants -- --require-non-superuser` reported OK.
 - Dumps are git-ignored and docker-ignored (`*.dump`, `*.backup`, `*.sql.gz`), but keep them outside the repository anyway.
 - `npm run db:check-grants` exits non-zero if any app-role limit is missing (and if the app lost a privilege it needs). It checks:
   - whole-table privileges;
@@ -209,8 +225,9 @@ Fixed after the Phase 06 security check (verified with Docker, 2026-10-15):
 - **Container hardening:** the proxy and app run with a read-only root filesystem, `cap_drop: ALL` and `no-new-privileges` (the proxy keeps only `NET_BIND_SERVICE`; scratch space is tmpfs). Verified in the running containers: writes to `/` fail, `/tmp` works for the app, and sign-in through the proxy still works. Postgres and Ollama are not hardened this way, because they write to their data directories and run their own entrypoints.
 - **App role attributes:** `db:check-grants` also reports a superuser, `CREATEDB`, `CREATEROLE`, replication or `BYPASSRLS` app role, and any role membership (tested).
 
+Fixed on 2026-10-16 (L-4, decision D-015; verified with Docker, see the verified list in the first-start section):
+- **Non-superuser schema owner:** see "Three roles, three passwords" above.
+
 Documented, not fixed (security check, Phase 06):
-- **Superuser for privileged operations (L-4):** migrations, `db:check-grants`, the `reviewer:*` commands and restores run as `POSTGRES_USER`, the bootstrap superuser.
-  - A separate non-superuser schema owner is not set up. That is a permission-model change needing a decision.
-  - The app does not assert at startup that `DATABASE_URL` connects as `docusync_app`. Never give the app the owner URL. `db:check-grants` checks the role by name, so it would not notice; it now does check that role's attributes.
+- **The app does not assert at startup** that `DATABASE_URL` connects as `docusync_app`. Never give the app the owner URL: it owns the schema. `db:check-grants` checks the app role's attributes, not which URL the app was started with.
 - **Postgres and Ollama containers** are not read-only or capability-dropped (see above).

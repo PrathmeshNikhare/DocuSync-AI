@@ -133,8 +133,7 @@ Measured on 2026-10-12. Every number comes from a command in this repository, on
 - **Single-instance assumptions:** the decision and create-PR rate limits are in-process. A per-IP limiter at the proxy is required before exposure.
 - **Accepted risks:** the trust in the app database role (D-013) and the inline-script CSP (D-012).
 - **Reference deployment limitations** (docs/10):
-  - migrations and operator commands run as the Postgres superuser;
-  - the app doesn't assert its database role;
+  - the app doesn't assert its database role (migrations and operator commands run as a non-superuser owner in the deployment, a superuser in dev and CI);
   - Ollama has no authentication of its own (it shares an internal network with the app only);
   - Postgres and Ollama containers are not read-only or capability-dropped;
   - the reviewer UI must stay on a private network: no per-IP limiter is shipped.

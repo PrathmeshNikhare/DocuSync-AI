@@ -1,8 +1,10 @@
-// Usage: npm run db:check-grants
+// Usage: npm run db:check-grants [-- --require-non-superuser]
 // Verifies the app role's privileges match the migrations (owner role,
 // MIGRATION_DATABASE_URL). Run after every restore; see docs/10.
+// --require-non-superuser (the reference deployment) also fails if the owner role
+// itself is a superuser or can create roles or databases.
 import { Client } from "pg";
-import { checkAppGrants } from "@/lib/db/grants";
+import { checkAppGrants, checkOwnerRole } from "@/lib/db/grants";
 import { getMigrationDatabaseUrl } from "@/lib/env";
 
 async function main() {
@@ -10,10 +12,12 @@ async function main() {
   await client.connect();
   try {
     const problems = await checkAppGrants(client);
+    if (process.argv.includes("--require-non-superuser"))
+      problems.push(...(await checkOwnerRole(client)));
     for (const p of problems) console.error(`FAIL ${p}`);
     console.log(
       problems.length
-        ? `${problems.length} grant problem(s): the app role's limits do not match the migrations.`
+        ? `${problems.length} grant problem(s): the database roles do not match the expected limits.`
         : "OK: the app role's privileges match the migrations.",
     );
     process.exitCode = problems.length ? 1 : 0;

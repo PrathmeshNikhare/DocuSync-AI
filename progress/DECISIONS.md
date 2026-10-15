@@ -122,3 +122,15 @@ Record material decisions. Do not use this file as a daily diary.
   - **Phase 05 follow-ups fixed in this phase:** security-check L-1, L-2 and L-3, and `/review` L3, L6, L7, L8 and L9.
 - Alternatives: deploying to user-provided infrastructure; screenshots with session-only browser tooling (not reproducible); setting up a live App now.
 - Consequences: the demo and docs must label mocked steps. The GitHub write path remains verified against a fake only.
+
+## D-015 — Non-superuser schema owner in the reference deployment
+- Status: Accepted (user-approved 2026-10-16: role name `docusync_owner`, deployment only, include the check)
+- Date: 2026-10-16
+- Context: security-check L-4. Migrations, `db:check-grants`, the `reviewer:*` commands and restores ran as the Postgres bootstrap superuser, so a leaked `migrate.env` gave full server control. No migration needs superuser rights (no extensions, roles or system settings).
+- Decision:
+  - **Roles:** `docusync_owner` (LOGIN, NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS) owns the database `docusync` and runs migrations and operator commands. The bootstrap superuser is used only by the init scripts and the healthcheck.
+  - **Init:** `deploy/initdb/01-app-role.sql` creates both roles without login; `02-app-password.sh` refuses placeholder, short or reused passwords and then grants login.
+  - **Check:** `db:check-grants -- --require-non-superuser` also fails if the owner role is a superuser or can create roles or databases. The migrate job uses it.
+  - **Scope:** the reference deployment only. Dev and CI keep a superuser owner.
+- Alternatives: also moving dev and CI (more churn in shared test setup); leaving it documented.
+- Consequences: an existing deployment volume must be recreated (init runs once). Dev and CI test less strictly than the deployment. The app still doesn't assert which URL it started with.

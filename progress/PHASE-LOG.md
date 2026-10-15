@@ -483,3 +483,11 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
 - Not covered: the required ruleset (no paid plan), retries, revocation, branch movement, incident response.
 - Cleanup: server stopped; the temporary reviewer disabled and its password file deleted; the sandbox PR and branch are left for the user to close and delete by hand.
 - Git state: docs only, uncommitted.
+
+### 2026-10-16 — After Phase 06 (PASS) — non-superuser schema owner (D-015)
+- Scope: security-check L-4, approved by the user (role `docusync_owner`, deployment only, with the check).
+- Changes: `deploy/initdb/01-app-role.sql` and `02-app-password.sh`, `deploy/postgres.env.example`, `deploy/migrate.env.example`, `deploy/compose.yml` (migrate command), `src/lib/db/grants.ts` (`checkOwnerRole`), `scripts/check-grants.ts` (`--require-non-superuser`), 1 new DB test, docs 07 and 10, README, D-015.
+- Verification (Docker, fresh volumes): migrations and `check-grants --require-non-superuser` as the owner; the owner can't create roles or databases, connect to `postgres` or read server files; per-role passwords over the network; placeholders refused at first start; backup and restore as the owner with identical ACLs; the full deployment check again.
+- Found: loopback in the official Postgres image is trust-authenticated, so a first password check over `127.0.0.1` was meaningless and was redone over the network.
+- Not covered: the app still doesn't assert its own role; dev and CI use a superuser owner.
+- Git state: uncommitted.

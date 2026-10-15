@@ -147,3 +147,32 @@ export async function checkAppGrants(db: Querier): Promise<string[]> {
   }
   return problems;
 }
+
+/**
+ * Problems with the role this connection runs as, which is the schema owner
+ * when called from the operator scripts. The reference deployment requires it
+ * to be a plain login role (docs/10, security-check L-4); dev and CI use a
+ * superuser owner, so the script only asks for this with --require-non-superuser.
+ */
+export async function checkOwnerRole(db: Querier): Promise<string[]> {
+  const { rows } = await db.query<{
+    rolsuper: boolean;
+    rolcreatedb: boolean;
+    rolcreaterole: boolean;
+    rolreplication: boolean;
+    rolbypassrls: boolean;
+  }>(
+    `SELECT rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls
+       FROM pg_roles WHERE rolname = current_user`,
+  );
+  const r = rows[0];
+  if (!r) return ["schema owner role not found"];
+  const problems: string[] = [];
+  if (r.rolsuper) problems.push("schema owner role is a superuser");
+  if (r.rolcreatedb) problems.push("schema owner role can create databases");
+  if (r.rolcreaterole) problems.push("schema owner role can create roles");
+  if (r.rolreplication) problems.push("schema owner role can replicate");
+  if (r.rolbypassrls)
+    problems.push("schema owner role bypasses row-level security");
+  return problems;
+}

@@ -52,7 +52,7 @@ GitHub credentials, repository source and documentation, user identity, review d
     - writes screenshots only when the whole run succeeds.
     - Verified on a temporary live-labelled analysis: `NOT_FIXTURE_DATA`, no decision recorded, no file written.
   - **Documented, not fixed:**
-    - L-4: superuser for migrations and operator commands, and no app-role assertion;
+    - L-4: superuser for migrations and operator commands (fixed on 2026-10-16: a non-superuser schema owner in the deployment, D-015), and no app-role assertion;
     - Ollama without authentication of its own.
   - **Fixed afterwards (2026-10-15):** Ollama on its own internal network, digest- and SHA-pinned images and Actions, read-only and capability-dropped proxy and app containers, app role attributes in `db:check-grants` (docs/10).
 - **No secrets in images (security-check L-1, fixed):** the Dockerfile copies an explicit file list, and `.dockerignore` excludes secret patterns at any depth. Re-verified: dummy keys, password files, a dump and an `.npmrc` planted in nested folders were absent from both rebuilt images.

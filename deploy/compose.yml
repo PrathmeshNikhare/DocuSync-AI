@@ -72,7 +72,12 @@ services:
       context: ..
       target: build
     env_file: migrate.env
-    command: ["sh", "-c", "npm run db:migrate && npm run db:check-grants"]
+    command:
+      [
+        "sh",
+        "-c",
+        "npm run db:migrate && npm run db:check-grants -- --require-non-superuser",
+      ]
     networks: [private]
     depends_on:
       postgres:

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { requireTestDbUrls, withOwner } from "@/test/db";
-import { checkAppGrants } from "./grants";
+import { checkAppGrants, checkOwnerRole } from "./grants";
 import { migrate } from "./migrate";
 
 const { ownerUrl } = requireTestDbUrls();
@@ -140,5 +140,30 @@ describe("single-column grants on whole-table limits (security-check L-2)", () =
         await c.query("REVOKE pg_read_all_data FROM docusync_app");
       }
       expect(await checkAppGrants(c)).toEqual([]);
+    }));
+});
+
+describe("checkOwnerRole", () => {
+  it("reports a superuser owner, and passes a plain login role", () =>
+    withOwner(ownerUrl, async (c) => {
+      // CI and dev connect as a superuser owner; the deployment must not.
+      expect(await checkOwnerRole(c)).toContain(
+        "schema owner role is a superuser",
+      );
+      await c.query("CREATE ROLE owner_check NOLOGIN");
+      try {
+        await c.query("SET ROLE owner_check");
+        expect(await checkOwnerRole(c)).toEqual([]);
+        await c.query("RESET ROLE");
+        await c.query("ALTER ROLE owner_check CREATEROLE CREATEDB");
+        await c.query("SET ROLE owner_check");
+        expect(await checkOwnerRole(c)).toEqual([
+          "schema owner role can create databases",
+          "schema owner role can create roles",
+        ]);
+      } finally {
+        await c.query("RESET ROLE");
+        await c.query("DROP ROLE owner_check");
+      }
     }));
 });
