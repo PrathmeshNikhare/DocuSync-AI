@@ -134,3 +134,11 @@ Record material decisions. Do not use this file as a daily diary.
   - **Scope:** the reference deployment only. Dev and CI keep a superuser owner.
 - Alternatives: also moving dev and CI (more churn in shared test setup); leaving it documented.
 - Consequences: an existing deployment volume must be recreated (init runs once). Dev and CI test less strictly than the deployment. The app still doesn't assert which URL it started with.
+
+## D-016 — Beta scope: no hosted or paid deployment; larger model is future scope
+- Status: Accepted (user-approved 2026-10-16)
+- Date: 2026-10-16
+- Context: Phase 06 is PASS and the post-gate hardening is done. The remaining items need paid services (a host, a GitHub plan for rulesets) or are open-ended (a larger model).
+- Decision: release as a **beta** for local and private-network use. No hosted or paid deployment, no ruleset-protected live run, and no larger-model evaluation now; these are recorded as future scope in the README. The first live write stays documented as a single run without a ruleset.
+- Alternatives: buying a plan or making a repository public to follow the ruleset requirement; evaluating a larger model now.
+- Consequences: the README and STATUS say beta. The docs keep listing what was never verified. Writes must stay off (`GITHUB_WRITES_ENABLED` not `true`) except in a throwaway repository.

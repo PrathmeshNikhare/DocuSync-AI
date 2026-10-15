@@ -12,6 +12,20 @@ Build a GitHub-integrated documentation maintenance assistant that:
 5. Supports human accept/edit/reject review.
 6. Creates a separate documentation PR only after explicit human approval.
 
+## Release status: beta
+
+This is a **beta** for local and private-network use (decision D-016). It is complete against `phases/` 00–06, with the limits below and in "Measured results and known limitations".
+- **In scope:** analysing pull requests (fixtures or a private GitHub App), reviewing proposals, and approval-gated documentation PRs, run locally or with the reference Docker deployment.
+- **Out of scope for the beta:** a hosted or paid deployment, rulesets (they need a paid GitHub plan or a public repository), and any claim of production readiness.
+- **Future scope** (not started):
+  - a larger Ollama model and a re-run of the held-out evaluation (the 3B model passed validation only on a one-line doc in the live run);
+  - a ruleset-protected live write run and a hosted deployment, with a real certificate and webhook URL;
+  - the app asserting its own database role at startup;
+  - read-only, capability-dropped Postgres and Ollama containers;
+  - a per-IP limiter at the proxy and a shared rate limiter for several app instances;
+  - MFA, signed decisions and decision expiry.
+- **Local environment:** keep every `GITHUB_*` value in one file. `.env.local` is what the npm scripts read, and Next.js lets it override `.env`, so a stale or empty value there wins (docs/10).
+
 ## Local setup
 
 Requires Node.js 24 (see `.nvmrc`) and Docker for PostgreSQL.

@@ -491,3 +491,9 @@ Append one entry per phase attempt. Preserve failed attempts and corrections.
 - Found: loopback in the official Postgres image is trust-authenticated, so a first password check over `127.0.0.1` was meaningless and was redone over the network.
 - Not covered: the app still doesn't assert its own role; dev and CI use a superuser owner.
 - Git state: uncommitted.
+
+### 2026-10-16 — After Phase 06 (PASS) — beta scope (D-016)
+- Scope: record the release as a beta and the future scope; no code changes.
+- Changes: README "Release status: beta" with the future-scope list, `STATUS.md`, D-016.
+- Found: after the user removed the empty `GITHUB_*` lines from `.env.local`, the real values were still only in `.env` (which the npm scripts don't read), and `.env.local` still held a different `GITHUB_ALLOWED_INSTALLATION_IDS` and `GITHUB_WEBHOOK_SECRET` that override `.env` in Next.js. `npm run ingest` still failed with `Invalid server environment`. The user was told to keep all `GITHUB_*` values in `.env.local`.
+- Git state: uncommitted (the push of `7ec8d62` is also pending).

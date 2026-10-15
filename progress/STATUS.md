@@ -1,11 +1,11 @@
 # Project Status
 
 - Project: DocuSync AI
-- Active phase: none. Phase 06, the last phase in `phases/`, is PASS (confirmed by the user 2026-10-13).
+- Active phase: none. Phase 06, the last phase in `phases/`, is PASS (confirmed by the user 2026-10-13). Release status: beta, local and private-network use only (D-016).
 - Status: Phase 06 PASS. All Phase 06 tasks are implemented. `/review` (M1–M3, L1–L3, L5, L7 fixed) and `/security-check` (M-A, L-1, L-2, L-3, L-5, L-6 and the cheap Info items fixed; L-4 and the rest documented) are done. Local and Linux CI-mirror checks pass (748 unit, 122 DB). GitHub Actions PASS on `dacb02e` (run 38354197107, all steps green). Phase 06 committed as `dacb02e` and pushed. Next: user direction (no further phase is specified).
 - Current branch: `main`
-- Last verified commit: `dacb02e` (Phase 06).
-- Last verification date: 2026-10-13
+- Last verified commit: `7ec8d62` (non-superuser owner, D-015), after Phase 06 `dacb02e`.
+- Last verification date: 2026-10-16
 - Current blockers: none. On the development machine, a native PostgreSQL 18 service holds port 5432, so local Postgres runs on `POSTGRES_HOST_PORT=55432` (set in the ignored `.env`).
 
 ## Phase table
