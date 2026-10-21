@@ -1,1 +1,0 @@
-Perform a read-only review of the current phase diff against the active phase spec, CLAUDE.md, AGENTS.md and relevant docs. Use the reviewer agent if available. Prioritize correctness, regressions, scope creep, type safety, error handling, security, accessibility and test gaps. Do not modify files. Return findings ranked by severity and state any areas not reviewed.

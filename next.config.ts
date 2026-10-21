@@ -14,7 +14,8 @@ const nextConfig: NextConfig = {
   },
   cacheComponents: true,
   partialPrefetching: true,
-  // AGENTS.md is a harness-owned file; stop `next dev` from injecting its managed block.
+  // Keep `next dev` from writing agent instructions into the repository (it would create
+  // or edit an AGENTS.md block). This project keeps no such file in the public tree.
   agentRules: false,
   turbopack: {
     rules: {

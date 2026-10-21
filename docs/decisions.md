@@ -1,7 +1,6 @@
-# Decision Log
+# Engineering Decisions
 
-Record material decisions. Do not use this file as a daily diary.
-
+The material architecture and scope decisions for DocuSync AI (D-001 to D-016), recorded as they were made. Source comments and the other documents cite these IDs. The IDs are stable; new decisions take the next number. Each entry gives context, decision, alternatives and consequences. "Phase" in an entry refers to the project's original build order (foundation, ingestion, impact engine, model patches, review UI, GitHub workflow, evaluation and hardening).
 ## D-001 — Next.js App Router
 - Status: Accepted
 - Context: The project needs a review UI and server endpoints.
@@ -141,4 +140,4 @@ Record material decisions. Do not use this file as a daily diary.
 - Context: Phase 06 is PASS and the post-gate hardening is done. The remaining items need paid services (a host, a GitHub plan for rulesets) or are open-ended (a larger model).
 - Decision: release as a **beta** for local and private-network use. No hosted or paid deployment, no ruleset-protected live run, and no larger-model evaluation now; these are recorded as future scope in the README. The first live write stays documented as a single run without a ruleset.
 - Alternatives: buying a plan or making a repository public to follow the ruleset requirement; evaluating a larger model now.
-- Consequences: the README and STATUS say beta. The docs keep listing what was never verified. Writes must stay off (`GITHUB_WRITES_ENABLED` not `true`) except in a throwaway repository.
+- Consequences: the README says beta. The docs keep listing what was never verified. Writes must stay off (`GITHUB_WRITES_ENABLED` not `true`) except in a throwaway repository.

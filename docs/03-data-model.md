@@ -4,21 +4,21 @@ Use PostgreSQL with `pg` and checked-in SQL migrations. Do not use Prisma.
 
 ## Migration convention (decision D-007)
 
-- Migrations are plain SQL files in `migrations/`, named `NNNN_short_description.sql` (for example `0001_create_repositories.sql`), and are applied in lexical order.
+- Migrations are plain SQL files in `migrations/`, named `NNNN_short_description.sql` (for example `0001_ingestion.sql`), and are applied in lexical order.
 - A migration that has been applied anywhere is never edited. Write a new migration to change it.
 - Each file runs in one transaction. The runner records applied files in a `schema_migrations` table (`name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ`) and skips files already recorded.
 - The runner is a small script built on `pg`, not a migration framework (`src/lib/db/migrate.ts`, `npm run db:migrate`). It takes a Postgres advisory lock so concurrent runs serialize, and it refuses `.sql` files that don't follow the naming pattern.
 - Migrations run as the schema owner (`MIGRATION_DATABASE_URL`). The app connects as `docusync_app` (`DATABASE_URL`), which can only read and write rows. Locally and in CI, that role and the `docusync_test` database are created by `db/init/01-app-role.sql`. In production, create an equivalent role outside of migrations.
 
-## Implemented tables (Phase 01, `0001_ingestion.sql`)
+## Tables from `0001_ingestion.sql`
 
 - `repositories`: `github_repo_id` (unique), `owner`, `name`, `installation_id`, timestamps.
 - `pull_requests`: unique `(repository_id, github_pr_number, head_sha)`, plus `base_sha`. There is no `status` or `updated_at` column yet.
 - `analyses`: unique `idempotency_key`, `delivery_id` (the first delivery that created the row), `status`, `started_at`, `completed_at`, `error_code`. CHECK constraints mirror `analysisStateSchema`: valid statuses, `error_code` set only when failed and in safe upper-snake form, timestamps consistent with the status and in chronological order.
 - `0002_restrict_app_role.sql` (no tables): revokes the app role's access to `schema_migrations` and TEMP, and CREATE on `public` from PUBLIC (see docs/07, control 12).
-- The other entities below are still planned, apart from those added in Phase 04.
+- Every entity under "Suggested entities" below now exists, created by migrations 0003 to 0005 (0006 adds a column). That section keeps the original design notes; the migrations in `migrations/` are authoritative.
 
-## Implemented tables (Phase 04, `0003_review.sql`)
+## Tables from `0003_review.sql`
 
 - `repositories` gains `source` (`github` or `fixture`). `github_repo_id` and `installation_id` are required exactly when `source = 'github'`, so fixture data never carries made-up GitHub ids. Fixture repositories are unique by `(owner, name)`.
 - `analyses` gains `pr_title`, `changed_files`, `engine_version`, `model_status` and `missing_context`, and `delivery_id` becomes nullable (fixture runs have no webhook delivery).
@@ -87,10 +87,10 @@ Use PostgreSQL with `pg` and checked-in SQL migrations. Do not use Prisma.
 - `created_at`
 - Every column except `decision` and `edited_patch` is set by the server, never taken from the request body. Before any GitHub write, the stored binding must match the current head SHA, blob SHA and patch hash; otherwise the approval is stale (docs/07 controls 9 and 10).
 
-### pull_requests (Phase 05 additions)
+### pull_requests (additions for the write path)
 - `head_ref`, `base_ref` (nullable): the source PR's branch names, recorded by live analyses (`npm run analysis:run -- --live`). A live run sets or refreshes them, also on a row the webhook or an earlier run created (a retargeted PR). Existing outputs keep their own `docs_pr_base_ref`. Fixture rows leave them NULL, and a GitHub write needs both.
 
-### github_outputs (Phase 05, migration 0005)
+### github_outputs (migration 0005)
 - One row per approved decision (`UNIQUE (decision_id)`), the idempotency key for the docs PR. Foreign keys are `ON DELETE RESTRICT`.
 - **Binding (fixed after insert):**
   - `decision_id`, `proposal_id`, `repository_id`;
@@ -108,10 +108,10 @@ Use PostgreSQL with `pg` and checked-in SQL migrations. Do not use Prisma.
   - `updated_at`.
 - Checks: a PR number and URL exist exactly when `step = 'pr_opened'`; `commit_sha` is set from `committed` on; an opened row has no error code.
 
-### analyses (Phase 06 addition, migration 0006)
+### analyses (addition, migration 0006)
 - `docs_partial` boolean, default false: a live analysis where some documentation could not be read (a truncated tree, or skipped, unreadable or mismatched docs). The UI shows it as a partial analysis. The reasons are in `missing_context`.
 
-### github_output_attempts (Phase 05)
+### github_output_attempts
 - `output_id`, `reviewer_id`, `attempted_at`: who pressed "Create documentation PR" each time. Append-only for the app role.
 
 ### Role grants (migration 0005)

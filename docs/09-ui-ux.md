@@ -28,7 +28,7 @@ Build a polished developer tool: restrained color, readable typography, strong h
 
 The primary review path should be understandable without reading project documentation: inspect evidence → inspect patch → edit/accept/reject → understand what happens next.
 
-## Implemented (Phase 04)
+## Review workflow
 
 - **Dashboard (`/`):** the repositories the reviewer can access, and recent analyses with status, model status, flagged documents and decided proposals. It has empty states for no access (with the operator command) and for no analyses, and a notice for failures. Fixture data is labelled.
 - **Analysis (`/analyses/[id]`):** the PR, head commit, status and engine; the changed files; and each candidate with its status (spelled out, not colour alone), rule points (titled "not a probability"), reason, deterministic evidence with exact quoted lines, uncertainty, and the model's assessment in a separate, labelled box. Partial, failed and running states are explicit, and each candidate says why it has no patch.
@@ -45,7 +45,7 @@ The primary review path should be understandable without reading project documen
   - alerts and status messages announced;
   - removed and added diff lines named for screen readers.
 - **Layout:** works at narrow widths, with wide tables scrolling sideways. Light and dark follow the system setting. There are no animations, so reduced-motion preferences are respected by default.
-- **Documentation PR (Phase 05):**
+- **Documentation PR:**
   - After an accept or edit on a live analysis, the decision section shows **Create documentation PR…** when writes are enabled.
   - It opens a confirmation, with focus moved to it and Escape to cancel. The confirmation shows:
     - the repository, source PR and head branch (hidden characters marked);
@@ -55,7 +55,7 @@ The primary review path should be understandable without reading project documen
   - Success shows a link to the PR, only if it is a github.com pull request URL, opened with `noopener noreferrer`. Failures show the server's message and code.
   - Fixture data, disabled writes and analyses without branch names each get an explanation instead of the button. A created PR is shown as a link on every later visit.
 
-## Phase 06 changes
+## Accessibility and evidence refinements
 
 - **Create-PR focus:**
   - While pending, the confirm button stays focused: it uses `aria-disabled`, and a second press does nothing.
@@ -63,4 +63,4 @@ The primary review path should be understandable without reading project documen
   - After success, the refreshed page's PR notice takes focus once.
   - The confirmation is an inline section, not a modal dialog.
 - **Partial analyses:** an analysis whose docs could not all be read shows "Partial analysis: some documentation could not be read" above the missing-context list.
-- **Screenshots:** real captures of the local production build with fixture data are in `docs/screenshots/` (`npm run screenshots`; see docs/11).
+- **Screenshots:** real captures of the local production build with fixture data are in `docs/assets/screenshots/` (`npm run screenshots`; see docs/11).

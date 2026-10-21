@@ -7,11 +7,11 @@
 - Run PostgreSQL locally, e.g. with Docker Compose.
 - Run Ollama locally; keep its endpoint private and configurable.
 - Apply SQL migrations before starting the app.
-- Document exact setup and verification commands in README after they are tested.
+- Exact setup and verification commands are in docs/setup.md and docs/development.md.
 
-## GitHub App setup (Phase 01, read-only)
+## GitHub App setup (read-only)
 
-1. Create a GitHub App, and set **Where can this GitHub App be installed?** to **Only on this account** (private). A public App would let anyone queue work. Repository permissions: **Pull requests: Read-only** and **Metadata: Read-only** (mandatory). For live analyses (Phase 05) add **Contents: Read-only**. Grant no write permissions unless you enable GitHub writes (next section).
+1. Create a GitHub App, and set **Where can this GitHub App be installed?** to **Only on this account** (private). A public App would let anyone queue work. Repository permissions: **Pull requests: Read-only** and **Metadata: Read-only** (mandatory). For live analyses add **Contents: Read-only**. Grant no write permissions unless you enable GitHub writes (next section).
 2. Subscribe to the **Pull request** event. Set the webhook URL to `https://<host>/api/webhooks/github` and a random secret of at least 20 characters (store it as `GITHUB_WEBHOOK_SECRET`).
 3. Generate a private key and store it as `GITHUB_APP_PRIVATE_KEY`, either as a one-line PEM with `\n` escapes or as a quoted multi-line value. Set `GITHUB_APP_ID`.
 4. Install the App on a test repository. The installation id is in the webhook payload (`installation.id`) and in the App's installation URL. Add it to `GITHUB_ALLOWED_INSTALLATION_IDS` (comma-separated). Deliveries from any other installation are ignored, and the webhook returns 503 until the allowlist is set.
@@ -19,7 +19,7 @@
 
 Even if the App is granted more permissions, the reader requests tokens with `pull_requests: read` only.
 
-## GitHub writes (Phase 05, off by default)
+## GitHub writes (off by default)
 
 Design: docs/13. Writes stay off unless `GITHUB_WRITES_ENABLED=true`; any other value, or none, disables them. Changing it needs a server restart.
 1. **Permissions:** to enable writes, give the App **Contents: Read and write** and **Pull requests: Read and write**. GitHub grants those for whole repositories (any branch, and merging). The code limits each operation to one repository, one new `docusync/…` branch, one file and one PR, never merges, and mints a fresh token per operation that it revokes afterwards. A stolen private key is limited only by GitHub-side controls, so:
@@ -45,13 +45,13 @@ Verified against a live GitHub App on 2026-10-15, once, in a private single-owne
 
 ### Failed webhook deliveries
 
-GitHub does not redeliver failed deliveries automatically. If the endpoint returns 5xx or doesn't answer within 10 s (for example, while the database is down), that delivery is lost. Redeliver it from the App's **Advanced → Recent deliveries** page within 3 days. Redelivery is safe because enqueueing is idempotent. An automated reconciliation job is planned for the runner phase.
+GitHub does not redeliver failed deliveries automatically. If the endpoint returns 5xx or doesn't answer within 10 s (for example, while the database is down), that delivery is lost. Redeliver it from the App's **Advanced → Recent deliveries** page within 3 days. Redelivery is safe because enqueueing is idempotent. There is no automated reconciliation job; it would belong with a background runner (D-009), which is not built.
 
 ### Credentials per process
 
 `MIGRATION_DATABASE_URL` and `TEST_MIGRATION_DATABASE_URL` belong to the schema owner and can change the schema. Locally they sit in `.env.local`, which `next dev` also loads. In any deployed environment, the web app must receive only `DATABASE_URL` (the `docusync_app` role); run migrations from a separate job that alone has the owner URL.
 
-## Reviewer accounts (Phase 04)
+## Reviewer accounts
 
 - `npm run reviewer:add -- --username <name> --name "<display name>" --password-file <new file>` creates a reviewer and writes a generated password to a new file (it refuses an existing file and never prints the password). The file gets mode 0600 on POSIX; on Windows, protect it with ACLs and delete it once the password is handed over. `npm run reviewer:grant -- --username <name> --repo <owner>/<repo>` gives them access to one repository. Both use the owner role (`MIGRATION_DATABASE_URL`), because the app role cannot write accounts or grants.
 - `npm run reviewer:disable -- --username <name>` disables a reviewer; their sessions stop working on the next request. `reviewer:enable` undoes it. `npm run reviewer:revoke -- --username <name> --repo <owner>/<repo>` removes one grant.
@@ -74,7 +74,7 @@ GitHub does not redeliver failed deliveries automatically. If the endpoint retur
 - Configure GitHub App callback/webhook URLs and permissions deliberately.
 - Start with read-only GitHub access; enable write permissions only after the approval workflow and security tests pass.
 
-## Reference private-network deployment (Phase 06, D-014)
+## Reference private-network deployment (D-014)
 
 `Dockerfile` and `deploy/compose.yml` describe one host running the app, Postgres and an optional Ollama behind a TLS proxy (Caddy). This is a reference setup verified locally with Docker on 2026-10-12. It is **not** a hosted deployment, and none was made.
 
@@ -188,7 +188,7 @@ npm run db:check-grants      # with MIGRATION_DATABASE_URL pointing at the resto
   Run it after every restore and migration.
 
 **Verified:**
-- fresh setup from the README on a new volume: migrations, `reviewer:add`, `analysis:run`, `reviewer:grant`;
+- fresh setup from docs/setup.md on a new volume: migrations, `reviewer:add`, `analysis:run`, `reviewer:grant`;
 - `pg_dump`, then a restore into a second server using the steps above;
 - the same row counts (6 migrations, 1 analysis, 1 reviewer, 1 grant) and identical ACLs;
 - `db:check-grants` OK, and the app role refused on `repositories` after the restore.
@@ -206,7 +206,7 @@ Record request/analysis IDs, durations, status, retry count, model/provider and 
 - **Webhook intake:** an empty `GITHUB_ALLOWED_INSTALLATION_IDS` (503).
 - **One reviewer:** `npm run reviewer:disable`, which takes effect at once.
 
-**Rate limits (Phase 06):**
+**Rate limits:**
 - 60 decisions and 10 create-PR requests per reviewer per minute (`429 RATE_LIMITED`).
 - Per process, in memory: with several app instances each keeps its own window.
 - Sign-in limits are per username.
@@ -219,7 +219,7 @@ Record request/analysis IDs, durations, status, retry count, model/provider and 
 
 ## Known limitations of the reference deployment
 
-Fixed after the Phase 06 security check (verified with Docker, 2026-10-15):
+Fixed after a security review (verified with Docker, 2026-10-15):
 - **Ollama isolation:** Ollama sits alone with the app on an internal `model` network. Postgres and the migrate job can no longer reach it. It still has no authentication of its own, so only the app may join that network. Checked in the resolved compose config; the Ollama container itself was not started here.
 - **Digest pinning:** the compose images (`caddy`, `postgres`, `ollama`), both Dockerfile stages (`node:24-slim`) and the CI Postgres service are pinned by `@sha256:` digest. The two GitHub Actions are pinned by commit SHA. All digests resolved on 2026-10-15; the tags are kept next to them. Update them deliberately (for example with Dependabot); the pinned images won't pick up security patches by themselves.
 - **Container hardening:** the proxy and app run with a read-only root filesystem, `cap_drop: ALL` and `no-new-privileges` (the proxy keeps only `NET_BIND_SERVICE`; scratch space is tmpfs). Verified in the running containers: writes to `/` fail, `/tmp` works for the app, and sign-in through the proxy still works. Postgres and Ollama are not hardened this way, because they write to their data directories and run their own entrypoints.
@@ -228,6 +228,6 @@ Fixed after the Phase 06 security check (verified with Docker, 2026-10-15):
 Fixed on 2026-10-16 (L-4, decision D-015; verified with Docker, see the verified list in the first-start section):
 - **Non-superuser schema owner:** see "Three roles, three passwords" above.
 
-Documented, not fixed (security check, Phase 06):
+Documented, not fixed (security review):
 - **The app does not assert at startup** that `DATABASE_URL` connects as `docusync_app`. Never give the app the owner URL: it owns the schema. `db:check-grants` checks the app role's attributes, not which URL the app was started with.
 - **Postgres and Ollama containers** are not read-only or capability-dropped (see above).

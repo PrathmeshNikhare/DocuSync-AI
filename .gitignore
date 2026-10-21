@@ -29,3 +29,17 @@ deploy/*.env
 *.dump
 *.backup
 *.sql.gz
+
+# editor and OS metadata, local tool settings
+.vscode/
+.idea/
+Thumbs.db
+.claude/settings.local.json
+
+# Playwright output (npm run screenshots writes to docs/assets/screenshots instead)
+playwright-report/
+test-results/
+
+# local model weights (Ollama keeps its models outside the repository)
+*.gguf
+*.safetensors

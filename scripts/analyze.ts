@@ -1,7 +1,7 @@
 // Usage: npm run analyze -- --fixture env-var-renamed
 // Runs the deterministic impact engine on one labelled scenario from
-// fixtures/impact/ and prints the result. Live repositories are not supported yet
-// (fetching docs needs the Contents permission; see the Phase 02 handoff).
+// fixtures/impact/ and prints the result. It does not read live repositories;
+// `npm run analysis:run -- --live` does (docs/13).
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";

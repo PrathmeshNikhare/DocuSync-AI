@@ -45,9 +45,9 @@ Do not assume all source-to-doc relationships can be inferred exactly. Record th
 - Compare deterministic-only baseline with LLM-assisted mode.
 - Do not claim general performance from a tiny synthetic dataset.
 
-## Implemented (Phase 02, engine `deterministic-0.3.0`)
+## Implementation (engine `deterministic-0.3.0`)
 
-Code: `src/lib/impact-engine/`. A pure function, `analyzeImpact(snapshot, docs, config?)`: no Next.js, database, GitHub or model imports (enforced by a test). It is not yet called by any route or job (D-010).
+Code: `src/lib/impact-engine/`. A pure function, `analyzeImpact(snapshot, docs, config?)`: no Next.js, database, GitHub or model imports (enforced by a test). It is called by the CLIs (`analyze`, `analysis:run`) and by `assistImpact`, not by any route handler or background job (D-009, D-010).
 
 - **Input:** a Phase 01 `PullRequestSnapshot` and the documentation files at the PR head (`docFileSchema`: validated paths, storable text, at most 500 docs of 200,000 characters each, no duplicate paths). Invalid doc input makes the engine throw a `ZodError`; a future runner must map that to a safe error code. Fetching docs from GitHub is not implemented yet; today the docs come from fixtures.
 - **Signals** (only changed lines create signals; context lines are hints, capped at 200 names per kind):
@@ -92,7 +92,7 @@ Code: `src/lib/impact-engine/`. A pure function, `analyzeImpact(snapshot, docs, 
 - **Known blind spots:** behaviour changes that leave no name, path or key in the diff (false negatives); generic exported names that also appear in prose, such as `config` (false positives); dynamic env access; re-exports from other modules; languages other than TS/JS; semantic changes; `package.json` keys whose block header is out of view but which aren't scripts (guessed by the value heuristic). See `docs/evaluation/impact-baseline.md`.
 - **Not done yet:** a wall-clock timeout and memory limit (planned for the runner, using a worker thread). The budgets above bound the work but not the time per regex call.
 
-## Model-assisted mode (Phase 03)
+## Model-assisted mode
 
 - `assistImpact` (`src/lib/assist/`) asks the model to assess each flagged candidate: `needs_update`, `no_update` or `uncertain`. The assessment is stored next to the candidate and never changes it (D-011).
 - In the evaluation, a flagged doc the model judges `no_update` counts as not flagged. The model never sees unflagged docs, so this mode can only remove false positives, not recover missed docs.

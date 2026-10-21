@@ -24,4 +24,4 @@ deploy/*.env
 coverage
 test-results
 playwright-report
-docs/screenshots
+docs/assets/screenshots

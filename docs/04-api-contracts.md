@@ -18,7 +18,7 @@ Never include stack traces, secrets, raw authorization headers or private model 
 
 ## Planned endpoints
 
-### `POST /api/webhooks/github` (implemented in Phase 01)
+### `POST /api/webhooks/github`
 - Accept GitHub webhook events.
 - Verify `X-Hub-Signature-256` against the raw request body before trusting payload fields.
 - Validate event/action/repository/PR identifiers.
@@ -42,22 +42,22 @@ Never include stack traces, secrets, raw authorization headers or private model 
 - Validate repository/PR references and authorize the user.
 - Return an analysis identifier and state.
 
-### `GET /api/analyses/:id` (implemented in Phase 04)
+### `GET /api/analyses/:id`
 - Return status, impact candidates and safe error information.
 - Enforce access to the associated repository.
 
-### `GET /api/reviews/:id` (implemented in Phase 04)
+### `GET /api/reviews/:id`
 - Return proposal metadata, evidence and diff content necessary for review.
 - Do not return secrets or unnecessary repository content.
 
-### `PATCH /api/reviews/:id` (implemented in Phase 04)
+### `PATCH /api/reviews/:id`
 - Accept one decision: `accepted`, `edited` (with `editedPatch`), or `rejected` (`reviewDecisionInputSchema`).
 - The body must not carry `reviewerId` or `proposalId`. The reviewer comes from the authenticated session, and the proposal comes from the URL.
 - Require authentication and authorization.
 - Validate edited patch; record reviewer and decision.
 - Acceptance is not itself a GitHub write unless the explicit approval workflow is implemented and invoked.
 
-### Implemented behaviour (Phase 04)
+### Review API behaviour
 
 All three endpoints authenticate with the session cookie and answer with `cache-control: no-store`. Errors use the envelope above, plus an `issues` array for patch validation failures. A missing resource and one the reviewer has no grant for both return 404, so ids can't be probed.
 
@@ -71,7 +71,7 @@ All three endpoints authenticate with the session cookie and answer with `cache-
 | PATCH body not `application/json` | 415 | `UNSUPPORTED_MEDIA_TYPE` |
 | PATCH body over 256 KiB | 413 | `PAYLOAD_TOO_LARGE` |
 | Body not JSON, or not one of the three decision shapes (extra keys such as `reviewerId` included) | 400 | `INVALID_JSON`, `VALIDATION_ERROR` |
-| More than 60 decision requests by one reviewer in a minute (Phase 06) | 429 | `RATE_LIMITED` |
+| More than 60 decision requests by one reviewer in a minute | 429 | `RATE_LIMITED` |
 | Proposal already decided | 409 | `INVALID_TRANSITION` |
 | Proposal did not pass validation | 409 | `PROPOSAL_NOT_VALID` |
 | Edited patch identical to the proposal | 422 | `EDIT_UNCHANGED` |
@@ -80,7 +80,7 @@ All three endpoints authenticate with the session cookie and answer with `cache-
 
 Sign-in and sign-out are Server Actions on `/login` and in the review layout, not JSON endpoints. Next.js refuses a Server Action whose `Origin` doesn't match the host; it answers 500 in that case.
 
-### `POST /api/reviews/:id/create-pr` (implemented in Phase 05)
+### `POST /api/reviews/:id/create-pr`
 - The only route that writes to GitHub (docs/13). Body: exactly `{ headSha, patchSha256 }` (at most 1 KiB), echoing the approval the reviewer confirmed. Same-origin, session and grant checks as for decisions; `cache-control: no-store`.
 - Never merges. Creates at most one branch, one commit and one PR per decision.
 
@@ -98,7 +98,7 @@ Sign-in and sign-out are Server Actions on `/login` and in the review layout, no
 | GitHub state changed | 409 | `PR_NOT_OPEN`, `REPOSITORY_MISMATCH`, `FORK_NOT_SUPPORTED`, `STALE_HEAD`, `PR_RETARGETED`, `STALE_BLOB`, `TREE_TRUNCATED`, `BRANCH_CONFLICT`, `PR_CREATE_REFUSED`, `PR_HEAD_MISMATCH` (a PR was opened but its branch moved; close it) |
 | Another attempt holds the lease | 409 | `IN_PROGRESS` |
 | Retried within 30 s / more than 5 attempts | 429 | `RETRY_TOO_SOON` / `ATTEMPT_LIMIT` |
-| More than 10 create-PR requests by one reviewer in a minute (Phase 06) | 429 | `RATE_LIMITED` |
+| More than 10 create-PR requests by one reviewer in a minute | 429 | `RATE_LIMITED` |
 | GitHub failed, timed out or answered ambiguously, the token was refused or wrongly scoped, a redirect (all retryable), or a terminal GitHub code such as a guard refusal or invalid response | 502 | the `GITHUB_*` or `LEASE_LOST` code; the message says whether to try again |
 | Unexpected failure | 500 | `INTERNAL_ERROR` |
 
@@ -112,7 +112,7 @@ Non-retryable codes are stored on the output row, and later requests get the sam
 - Use consistent status codes and request IDs.
 - Avoid trusting IDs supplied by the client without checking ownership.
 
-## Phase 06 additions
+## Further behaviour
 
 - **`GET /api/reviews/:id` fields:** it also returns `pr.headRef`, `output` (`step`, `errorCode`, `prNumber`, `prUrl`, or null) and `writesEnabled`.
 - **`GET /api/analyses/:id` fields:** it also returns `docsPartial`.

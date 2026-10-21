@@ -1,6 +1,6 @@
-# GitHub Write Workflow (Phase 05 design)
+# GitHub Write Workflow
 
-Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a fetch-level fake of GitHub, not a live App; security design review 2026-10-12: approve with required changes; all applied, re-review approved, with its two wording fixes and low items applied). The phase spec requires that approval before any write code exists. Decision D-013 records the user's choices:
+Status: **approved and implemented** (design approved 2026-10-12 after a security design review whose required changes were all applied). It is tested against a fetch-level fake of GitHub and the test database, and ran once against a live GitHub App on 2026-10-15 in a private sandbox repository without the required ruleset (docs/10). The design was approved before any write code existed. Decision D-013 records the choices:
 - a live CLI analysis path;
 - a docs PR stacked on the source PR's head branch;
 - fresh approval as an explicit action that echoes back the hashes the reviewer saw;
@@ -34,7 +34,7 @@ Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a
 
 ## Writes are off by default
 
-- Every write path requires `GITHUB_WRITES_ENABLED=true` (CLAUDE.md: "GitHub writes must be unavailable by default"). Unset, or any other value, means:
+- Every write path requires `GITHUB_WRITES_ENABLED=true` (product invariant, docs/07: "GitHub writes are unavailable by default"). Unset, or any other value, means:
   - the create-PR endpoint answers `503 WRITES_DISABLED`;
   - the UI explains that writes are turned off.
 - **Enforced twice:** in the route, and again inside the writer. The writer refuses to build a client, mint a token or issue any mutating call while the flag is off, so no other caller can skip it.
@@ -96,7 +96,7 @@ Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a
 `npm run analysis:run -- --live owner/repo#N --installation <id>`:
 1. **Installation:** must be in `GITHUB_ALLOWED_INSTALLATION_IDS`.
 2. **Ingest:**
-   - The PR is ingested with the Phase 01 reader, with stale-head detection unchanged.
+   - The PR is ingested with the read-only reader, with stale-head detection unchanged.
    - The raw PR schema gains `state`, `head.ref`, `head.repo.id` (nullable) and `base.repo.id`.
    - The repository id comes from GitHub's `base.repo.id`, never from the command line.
    - A PR whose `head.repo` is null or differs from `base.repo` is refused (`FORK_NOT_SUPPORTED`).
@@ -109,7 +109,7 @@ Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a
    - decode the base64 to bytes;
    - **refuse** a leading `EF BB BF` (checked on the bytes, since `TextDecoder` strips a BOM silently), a NUL byte (Postgres can't store it) and invalid UTF-8 (`TextDecoder` with `fatal: true`). Each is noted and skipped;
    - require `gitBlobSha(text) === tree sha`, and skip on mismatch.
-   - This makes `baseBlobSha` GitHub's real blob id at `headSha` (closes Phase 03 L4 for live data).
+   - This makes `baseBlobSha` GitHub's real blob id at `headSha` (closes the earlier limitation that the blob SHA was the hash of stored text, for live data).
    - `gitBlobSha` is SHA-1 only, so SHA-256 repositories skip every doc. That fails closed.
 5. **Run and save:**
    - run `assistImpact`;
@@ -125,7 +125,7 @@ The webhook still only enqueues (D-009). There is no background runner.
   - the head SHA, the target file and its blob;
   - **the approved diff itself**, rendered as safe text as in the review page;
   - the approved patch hash.
-- **The request:** `POST /api/reviews/:proposalId/create-pr` with a JSON body of exactly `{ headSha, patchSha256 }`, echoing what the dialog showed. It keeps the Phase 04 controls:
+- **The request:** `POST /api/reviews/:proposalId/create-pr` with a JSON body of exactly `{ headSha, patchSha256 }`, echoing what the dialog showed. It keeps the review API's controls:
   - same-origin check and body limit;
   - `no-store`;
   - the error envelope and coded 500s.
@@ -256,7 +256,7 @@ To stop writes and contain damage:
 5. **Clean up GitHub:** close the bot's open PRs and delete leftover `docusync/…` branches by hand. The App never deletes them. A `PR_HEAD_MISMATCH` always leaves a PR to close; check any bot PR whose commit list differs from the commit named in its body.
 6. **Review the evidence:** check `github_outputs`, `github_output_attempts` and the logs for what was written and by whom.
 
-## Phase 04 follow-ups in this phase
+## Follow-ups to the review UI
 
 - **Operator commands:**
   - `reviewer:revoke` removes a grant;
@@ -353,7 +353,7 @@ To stop writes and contain damage:
 - **Actions minutes:** pushes and PRs made with an App token run the target repository's workflows. That costs Actions minutes but adds no new execution privilege.
 - **Run live once (2026-10-15):** the read path and one write (branch, commit, PR) ran against a live App in a private sandbox (docs/10), without the required ruleset. Everything else here is still verified against mocks only: retries, revocation, branch movement and incident response.
 
-## Phase 06 changes
+## Hardening after the first design
 
 - **Early answers:** an existing output that is locked, terminal, at its attempt limit or retried too soon is answered from its row before the approval is re-checked (security-check L-3).
 - **Per-reviewer limits:** 10 create-PR requests per minute.

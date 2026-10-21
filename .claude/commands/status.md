@@ -1,1 +1,0 @@
-Read `CLAUDE.md`, `AGENTS.md`, `progress/STATUS.md`, `progress/DECISIONS.md`, the active phase and latest handoff. Inspect actual git status, current branch, recent commits and repository files. Verify material claims rather than trusting notes. Report active phase, verified state, tests last observed, blockers, uncommitted changes and next safe action. Do not modify files.
