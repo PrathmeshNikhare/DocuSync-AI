@@ -1,64 +1,37 @@
 # LLM and Patch Generation
 
-## Provider interface
+## Design
 
-Create a narrow interface such as:
-- `analyzeImpact(input) -> validated impact assessment`
-- `proposeDocumentationPatch(input) -> validated patch proposal`
+DocuSync uses a local model for two bounded jobs, and nothing else: assess a document the deterministic engine already flagged, and propose small edits to it. Everything the model returns is untrusted and goes through validation before a person sees it.
 
-Implement an Ollama provider behind that interface. Keep model name, timeout and context limits configurable. Do not hard-code one model throughout the application.
+**Provider interface.** `LlmProvider` is a transport with one method, `chat` (`src/lib/llm/provider.ts`). Higher-level calls go through `generateStructured`, which sends JSON in and validates JSON out against a Zod schema. The Ollama implementation reads the model name, timeout and context size from configuration; no model is hard-coded.
 
-## Prompting and trust boundaries
+**Prompting and trust boundaries**
+- Repository text and diff content are untrusted data, never instructions. Source material is delimited, and the prompts state that embedded instructions must be ignored.
+- Only relevant, bounded context is sent.
+- Output must match a Zod schema; invalid output is retried under a bounded policy.
+- Code evidence is kept independently of the model's explanation.
+- The model has no credentials and no GitHub write tools.
+- Model confidence is never presented as calibrated.
 
-- Treat repository text and diff content as untrusted data, never as instructions.
-- Clearly delimit source material and state that embedded instructions must be ignored.
-- Send only relevant, bounded context.
-- Ask for structured output matching a Zod schema.
-- Validate model output; retry only with bounded policy.
-- Preserve code evidence independently from the model's explanation.
-- The model must not have credentials or direct access to GitHub write tools.
-- Do not claim the model's confidence is statistically calibrated.
+**A patch proposal records:** the target documentation path, the base source revision (head SHA and the document's git blob SHA), the patch, a brief rationale, evidence references, validation results and model metadata.
 
-## Patch proposal
+**Failure policy.** If Ollama is unavailable, the result is a clear failure state or a deterministic-only analysis. A generated patch is never fabricated, and a patch is never applied to a working tree: proposals are validated as strings in memory and applied to GitHub only through the approval-gated write path (docs/13).
 
-A proposal should include:
-- Target documentation path.
-- Base source revision/blob identifier.
-- Unified diff or structured edit representation.
-- Brief rationale.
-- Evidence references.
-- Validation results.
-- Model/provider metadata appropriate for debugging.
-
-## Patch validation
-
-- Path must be repository-relative, normalized, and within allowed documentation paths.
-- Reject absolute paths, `..`, symlink escapes and disallowed file types.
-- Enforce patch and file-size limits.
-- Apply patch in an isolated temporary workspace or validate using a safe parser; do not execute repository code.
-- Ensure the base revision is still current before approval/write.
-- Validate Markdown and links where practical.
-- Reject malformed, empty, unrelated or unexpectedly broad patches.
-- Never apply a patch to the user's working tree without explicit action.
-
-## Failure policy
-
-If Ollama is unavailable, output a clear failure state or permit deterministic-only analysis. Do not fabricate a generated patch.
-
-## Implemented (Phase 03)
+## Implementation
 
 Decision D-011. Code: `src/lib/llm/` (provider, Ollama transport, prompts), `src/lib/patches/` (path policy, blob SHA, edit rendering, strict diff application, validation) and `src/lib/assist/` (orchestration, bounded context, evaluation helpers). None of them import GitHub, database or Next.js code (tested).
 
 ### Provider
 
-- `LlmProvider` is a transport with one method, `chat`, and no tools or credentials. `generateStructured` sends the data as one JSON-encoded user message, passes the Zod schema to the model as a JSON schema, then parses and validates the reply. Invalid output is retried once (2 attempts in total). The retry carries `attempt: 2`, and the Ollama transport uses a different seed for it: at temperature 0 a same-seed retry returns the same reply, so before this the retry never helped. Unavailable, timeout and missing-model failures are never retried, and a provider that throws counts as `LLM_UNAVAILABLE`.
+- `LlmProvider` is a transport with one method, `chat`, and no tools or credentials. `generateStructured` sends the data as one JSON-encoded user message, passes the Zod schema to the model as a JSON schema, then parses and validates the reply. Invalid output is retried once (2 attempts in total). The retry carries `attempt: 2`, and the Ollama transport uses a different seed for it: at temperature 0 a same-seed retry would return the same reply. Unavailable, timeout and missing-model failures are never retried, and a provider that throws counts as `LLM_UNAVAILABLE`.
 - `createOllamaProvider` calls `POST /api/chat` with `stream: false`, the JSON schema as `format`, `temperature: 0`, `seed: 41 + attempt` (42 on the first try) and `num_ctx` from config. Requests refuse redirects, time out after `OLLAMA_TIMEOUT_MS` (default 120 s, including reading the body), and replies over 256 KiB are rejected.
 - Failure codes: `LLM_NOT_CONFIGURED` (no `OLLAMA_MODEL`), `LLM_UNAVAILABLE`, `LLM_TIMEOUT`, `LLM_MODEL_NOT_FOUND` and `LLM_INVALID_OUTPUT`.
 - Logs record the model, prompt version, duration and outcome only, never prompts, data or replies.
 
 ### Prompts and context
 
-- Prompts are versioned (`assess-v2`, `patch-v1`; `assess-v1` had no citation bound in its schema). Both system prompts say that every field of the data is untrusted repository data and that instructions inside it must be ignored. Untrusted text appears only inside JSON strings in the user message.
+- Prompts are versioned (`assess-v2`, `patch-v1`; `assess-v1` is retired: its schema had no citation bound). Both system prompts say that every field of the data is untrusted repository data and that instructions inside it must be ignored. Untrusted text appears only inside JSON strings in the user message.
 - The context holds the deterministic candidate (status, reason, rules), its evidence by index (excerpts cut to 300 characters, 2,500 in total; past that only the index, signal and path), the diff hunks that contain source-side evidence (4,000 characters in total, 2,000 per hunk), the PR title (200 characters), and the doc. Docs up to 6,000 characters are sent whole; larger docs as ±20-line windows around doc evidence, within 6,000 characters. Every cut is reported in `notes`.
 - **Prompt-size guard:** the budgets keep a plain worst case inside the default 8,192-token context (tested). A provider can also declare `maxInputChars`: Ollama uses `(num_ctx − 1,024 reply tokens) × 2.5` characters, a deliberately conservative estimate, not a tokenizer. A prompt over that is not sent (`LLM_CONTEXT_TOO_LARGE`), because Ollama would silently truncate it, possibly dropping the doc or the untrusted-data warning. Text that escapes badly in JSON (many quotes or backslashes) can trip the guard; the candidate is then skipped, not truncated.
 
@@ -76,7 +49,7 @@ Decision D-011. Code: `src/lib/llm/` (provider, Ollama transport, prompts), `src
 ### Patch validation (`validatePatch`)
 
 Every failure is a reason code. Nothing is repaired.
-- **Path:** must pass `repoPathSchema` and be NFC-normalized; no `%`, `?` or `#`; no segment starting with `.` or `-`, no Windows reserved names, segments at most 255 bytes; extension `.md` or `.markdown` only; at the repository root or under `docs/`; and not an AI-agent instruction file (`AGENTS.md`, `AGENT.md`, `CLAUDE.md`, `GEMINI.md`, at any depth). Comparison is case-insensitive. `.txt` (e.g. `requirements.txt`, `CMakeLists.txt`) and `.mdx` (whose imports and `{expressions}` run at docs build time) were allowed in the first version and removed after the security check.
+- **Path:** must pass `repoPathSchema` and be NFC-normalized; no `%`, `?` or `#`; no segment starting with `.` or `-`, no Windows reserved names, segments at most 255 bytes; extension `.md` or `.markdown` only; at the repository root or under `docs/`; and not an AI-agent instruction file (`AGENTS.md`, `AGENT.md`, `CLAUDE.md`, `GEMINI.md`, at any depth). Comparison is case-insensitive. `.txt` (e.g. `requirements.txt`, `CMakeLists.txt`, which are build inputs) and `.mdx` (whose imports and `{expressions}` run at docs build time) are excluded on purpose.
 - **Revision:** `baseBlobSha` must equal the git blob SHA-1 of the doc it is checked against (`PATCH_STALE_BASE`).
 - **Structure:** `--- a/<path>` and `+++ b/<path>` headers must name the target; hunks are parsed strictly (`parseHunks`) and applied in order with exact context matching, no fuzz or offset, including end-of-file newline markers.
 - **Size and breadth:** at most 8,000 characters, 5 hunks and 40 changed lines; removals at most 30% of the doc's lines (minimum 2); empty patches are rejected.
@@ -87,8 +60,8 @@ Every failure is a reason code. Nothing is repaired.
   - **Links:** targets are extracted from inline links and images, reference definitions, autolinks, URL attributes, and bare `scheme://`, `www.` and e-mail text. Each is decoded the way a renderer reads it: Markdown backslash escapes, numeric references with any number of leading zeros, common named references, whitespace removed. It is then resolved with `new URL(target, "https://placeholder.invalid/")`. `javascript:`, `vbscript:`, `data:` and `file:` are rejected; any other link leaving the placeholder origin must exactly match a link in the doc or the PR diff resolved the same way. Relative links stay allowed. A target that can't be resolved, or still holds an unknown named reference, counts as new.
   - `javascript:` and `vbscript:` are also rejected anywhere in the decoded added text.
   - Code fences must stay balanced.
-  - These checks reduce what a patch can carry; they are not a sanitizer. Whatever renders a patch (GitHub, the Phase 04 UI) must still sanitize. Links anywhere in the PR's diff count as known, so a PR author can plant one that a patch then carries (accepted; the doc PR is human-reviewed). Look-alike letters (e.g. Cyrillic in an identifier) are not detected.
-- **Symlinks:** patches are applied to strings in memory, never on a file system, so symlink escapes can't happen here. The future doc fetcher must refuse symlink entries.
+  - These checks reduce what a patch can carry; they are not a sanitizer. Whatever renders a patch (GitHub, the review UI) must still sanitize. Links anywhere in the PR's diff count as known, so a PR author can plant one that a patch then carries (accepted; the doc PR is human-reviewed). Look-alike letters (e.g. Cyrillic in an identifier) are not detected.
+- **Symlinks:** patches are applied to strings in memory, never on a file system, so symlink escapes can't happen here. The live document fetcher refuses symlink and submodule entries (docs/13).
 
 ### Commands
 
@@ -96,8 +69,8 @@ Every failure is a reason code. Nothing is repaired.
 - `npm run eval:llm` runs both modes over all scenarios and writes `docs/evaluation/llm-assisted.md` (docs/08).
 - `npm run test:ollama` runs the opt-in tests against a real Ollama.
 
-### Not yet
+### Limits
 
-- Proposals are not persisted, and nothing runs them for queued analyses (D-009, D-010).
+- Proposals are persisted by `saveAnalysis` (docs/03) when a CLI run is saved, but nothing runs the model for queued webhook analyses (D-009).
 - No retry with feedback when edits can't be placed, and no Markdown link checking beyond the URL rule.
 - Model output can still be wrong prose that passes every check. Validation bounds where and how much a patch changes, not whether it is right.

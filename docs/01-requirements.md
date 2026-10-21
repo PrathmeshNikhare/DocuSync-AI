@@ -1,5 +1,7 @@
 # Requirements
 
+These are the requirements the project was built against. The README and docs/02 describe what exists today, and the README lists what is not built.
+
 ## Problem
 
 Engineering documentation becomes stale as code changes. Reviewers need help discovering which docs may be affected, understanding why, and preparing accurate updates without surrendering control.

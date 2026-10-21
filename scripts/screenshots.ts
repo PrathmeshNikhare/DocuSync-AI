@@ -2,7 +2,7 @@
 //   SCREENSHOT_BASE_URL=http://localhost:3000 SCREENSHOT_USERNAME=<reviewer> \
 //   SCREENSHOT_PASSWORD_FILE=<file from reviewer:add> SCREENSHOT_ANALYSIS_ID=<id> \
 //   npm run screenshots
-// Drives the real UI with Playwright and writes docs/screenshots/*.png. It shows
+// Drives the real UI with Playwright and writes docs/assets/screenshots/*.png. It shows
 // what the app renders for the given data: use a labelled fixture analysis with
 // an undecided proposal. Nothing here is mocked or edited after capture.
 // It ACCEPTS that proposal as the signed-in reviewer, so it refuses anything not
@@ -31,7 +31,7 @@ async function main() {
   const username = env("SCREENSHOT_USERNAME");
   const password = readFileSync(env("SCREENSHOT_PASSWORD_FILE"), "utf8").trim();
   const analysisId = env("SCREENSHOT_ANALYSIS_ID");
-  const out = path.join(process.cwd(), "docs", "screenshots");
+  const out = path.join(process.cwd(), "docs", "assets", "screenshots");
   mkdirSync(out, { recursive: true });
   const browser = await chromium.launch();
   const page = await browser.newPage({
@@ -93,7 +93,7 @@ async function main() {
   }
   for (const [name, png] of captured) {
     writeFileSync(path.join(out, `${name}.png`), png);
-    console.log(`docs/screenshots/${name}.png`);
+    console.log(`docs/assets/screenshots/${name}.png`);
   }
 }
 

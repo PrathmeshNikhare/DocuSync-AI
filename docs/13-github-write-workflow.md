@@ -1,8 +1,8 @@
-# GitHub Write Workflow (Phase 05 design)
+# GitHub Write Workflow
 
-Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a fetch-level fake of GitHub, not a live App; security design review 2026-10-12: approve with required changes; all applied, re-review approved, with its two wording fixes and low items applied). The phase spec requires that approval before any write code exists. Decision D-013 records the user's choices:
+Status: **implemented**. The design was approved on 2026-10-12, before any write code existed, after a security design review whose required changes were all applied. It is tested against a fetch-level fake of GitHub and the test database, and ran once against a live GitHub App on 2026-10-15 in a private sandbox repository without the required ruleset (docs/10). Decision D-013 records the choices:
 - a live CLI analysis path;
-- a docs PR stacked on the source PR's head branch;
+- a documentation PR stacked on the source PR's head branch;
 - fresh approval as an explicit action that echoes back the hashes the reviewer saw;
 - the app database role is trusted, within bounds (see "Trust assumption");
 - reviewers are named by display name;
@@ -21,7 +21,7 @@ Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a
 
 ## Trust assumption (D-013)
 
-- **What a compromised app role can do:** whoever holds the app database role (`DATABASE_URL`) can insert sessions, proposals and decisions. So they can make the App open a bounded docs PR. The PR must be in a repository of an allowlisted installation, change one allowed doc file with a patch that passes `validatePatch`, target the head branch of an open same-repository PR, and is never merged.
+- **What a compromised app role can do:** whoever holds the app database role (`DATABASE_URL`) can insert sessions, proposals and decisions. So they can make the App open a bounded documentation PR. The PR must be in a repository of an allowlisted installation, change one allowed doc file with a patch that passes `validatePatch`, target the head branch of an open same-repository PR, and is never merged.
 - **Accepted:** the user accepted this risk. Signed decisions or HMAC-keyed sessions are not built.
 - **Limits that stay in place:**
   - **Repository identity is fixed:** `repositories (github_repo_id, source)` can't be updated by the app role (migration 0005 revokes table-level UPDATE and grants it back on `owner`, `name`, `installation_id` and `updated_at` only). The webhook's upsert still updates `owner`, `name` and `installation_id` after renames and transfers.
@@ -34,7 +34,7 @@ Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a
 
 ## Writes are off by default
 
-- Every write path requires `GITHUB_WRITES_ENABLED=true` (CLAUDE.md: "GitHub writes must be unavailable by default"). Unset, or any other value, means:
+- Every write path requires `GITHUB_WRITES_ENABLED=true` (product invariant, docs/07: "GitHub writes are unavailable by default"). Unset, or any other value, means:
   - the create-PR endpoint answers `503 WRITES_DISABLED`;
   - the UI explains that writes are turned off.
 - **Enforced twice:** in the route, and again inside the writer. The writer refuses to build a client, mint a token or issue any mutating call while the flag is off, so no other caller can skip it.
@@ -43,10 +43,10 @@ Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a
 ## GitHub permissions and the request guard
 
 - **One App** for reading and writing (user choice). docs/10 recommends a separate write App, and branch rulesets, for deployments that want a stolen read key not to be able to mint write tokens.
-- **Reader (extended for the live path):**
+- **Reader (live path):**
   - tokens ask for `pull_requests: read` and `contents: read`, scoped to the one repository named on the command line (`repositoryNames`);
   - the existing guard still refuses any non-GET call.
-- **Writer (new, separate module `src/lib/github/writer.ts`):**
+- **Writer (separate module, `src/lib/github/writer.ts`):**
   - **Token:**
     - built with a new `createAppAuth` per write operation, because `@octokit/auth-app` caches installation tokens otherwise;
     - asks for `contents: write` and `pull_requests: write`, with `repository_ids: [github_repo_id]`;
@@ -96,7 +96,7 @@ Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a
 `npm run analysis:run -- --live owner/repo#N --installation <id>`:
 1. **Installation:** must be in `GITHUB_ALLOWED_INSTALLATION_IDS`.
 2. **Ingest:**
-   - The PR is ingested with the Phase 01 reader, with stale-head detection unchanged.
+   - The PR is ingested with the read-only reader, with stale-head detection unchanged.
    - The raw PR schema gains `state`, `head.ref`, `head.repo.id` (nullable) and `base.repo.id`.
    - The repository id comes from GitHub's `base.repo.id`, never from the command line.
    - A PR whose `head.repo` is null or differs from `base.repo` is refused (`FORK_NOT_SUPPORTED`).
@@ -109,7 +109,7 @@ Status: **approved and implemented** (Phase 05 PASS 2026-10-12; tested against a
    - decode the base64 to bytes;
    - **refuse** a leading `EF BB BF` (checked on the bytes, since `TextDecoder` strips a BOM silently), a NUL byte (Postgres can't store it) and invalid UTF-8 (`TextDecoder` with `fatal: true`). Each is noted and skipped;
    - require `gitBlobSha(text) === tree sha`, and skip on mismatch.
-   - This makes `baseBlobSha` GitHub's real blob id at `headSha` (closes Phase 03 L4 for live data).
+   - This makes `baseBlobSha` GitHub's real blob id at `headSha` (closes the earlier limitation that the blob SHA was the hash of stored text, for live data).
    - `gitBlobSha` is SHA-1 only, so SHA-256 repositories skip every doc. That fails closed.
 5. **Run and save:**
    - run `assistImpact`;
@@ -125,7 +125,7 @@ The webhook still only enqueues (D-009). There is no background runner.
   - the head SHA, the target file and its blob;
   - **the approved diff itself**, rendered as safe text as in the review page;
   - the approved patch hash.
-- **The request:** `POST /api/reviews/:proposalId/create-pr` with a JSON body of exactly `{ headSha, patchSha256 }`, echoing what the dialog showed. It keeps the Phase 04 controls:
+- **The request:** `POST /api/reviews/:proposalId/create-pr` with a JSON body of exactly `{ headSha, patchSha256 }`, echoing what the dialog showed. It keeps the review API's controls:
   - same-origin check and body limit;
   - `no-store`;
   - the error envelope and coded 500s.
@@ -171,7 +171,7 @@ All of these are checked, in this order. The first failure stops the write with 
     - `id`, `decision_id`, `proposal_id`, `repository_id`;
     - `github_repo_id`, `installation_id`;
     - `head_sha`, `base_blob_sha`, `patch_sha256`;
-    - `branch`, `docs_pr_base_ref` (the docs PR's base, which is the source PR's head ref);
+    - `branch`, `docs_pr_base_ref` (the documentation PR's base, which is the source PR's head ref);
     - `created_by`.
   - **Mutable columns:**
     - `step` (`pending`, `branch_created`, `committed`, `pr_opened`);
@@ -214,8 +214,10 @@ All of these are checked, in this order. The first failure stops the write with 
   - A `pr_opened` row answers with the stored PR URL and never creates another. This happens right after the session and grant checks, before the approval checks, so the PR is still reported after its approver was disabled. An adopted PR may be closed, so the UI shows the PR link without claiming it is open. A PR adopted rather than created by this request is reported with `created: false` (HTTP 200).
   - A row whose last error is retryable can be retried, within the attempt limit. Retryable: GitHub timeouts, network and 5xx errors, rate limits, 401/403/404 from GitHub, a refused or wrongly scoped token (`GITHUB_TOKEN_REFUSED`, `GITHUB_TOKEN_SCOPE`: credentials or installation being fixed), redirects (`GITHUB_REDIRECT`: a renamed repository until the webhook records the new name), `GITHUB_AMBIGUOUS`, `WRITES_DISABLED`, `LEASE_LOST` and `INTERNAL_ERROR`.
   - Non-retryable codes need a new analysis and review: stale, mismatch, tampered, rejected, conflict, `PR_CREATE_REFUSED`. The API says so in its message (a 502 for a terminal GitHub code reads differently from a retryable one).
+  - **Early answers (security-check L-3):** an existing output that is locked, terminal, at its attempt limit or retried too soon is answered from its row before the approval is re-checked.
+  - **Resume re-checks the binding (`/review` L3):** a resumed output's stored `head_sha`, `base_blob_sha` and `patch_sha256` must equal the approval's (`APPROVAL_TAMPERED`).
 - **Configuration first:** the route validates the App id and key, `GITHUB_APP_SLUG` and the installation allowlist before calling the publish flow (`503 WRITES_MISCONFIGURED` otherwise). Stored evidence and model metadata are parsed before the claim. A misconfiguration or corrupt row costs no attempt and mints no token. An unexpected error after the claim releases the lease and records `INTERNAL_ERROR` (retryable).
-- **New env var:** `GITHUB_APP_SLUG` (`^[a-z0-9-]{1,100}$`), required only when writes are enabled.
+- **`GITHUB_APP_SLUG`** (`^[a-z0-9-]{1,100}$`) is required only when writes are enabled.
 
 ## PR content (untrusted text handled)
 
@@ -242,7 +244,7 @@ All of these are checked, in this order. The first failure stops the write with 
 
 ## Logging and secrets
 
-- **`logEvent` fields** gain `outputId` and `reviewerId` (opaque ids). Each attempt logs the request id, output id, reviewer id, step and code.
+- **`logEvent` fields** include `outputId` and `reviewerId` (opaque ids). Each attempt logs the request id, output id, reviewer id, the step it reached (L6) and the code.
 - **Never logged:** tokens, the private key, patch text, file content, PR bodies or GitHub error messages.
 - **Server-only secrets:** the private key is read only on the server (the `server-only` env module) and never sent to the client. Tokens live in memory for one operation, then are revoked.
 
@@ -256,87 +258,16 @@ To stop writes and contain damage:
 5. **Clean up GitHub:** close the bot's open PRs and delete leftover `docusync/…` branches by hand. The App never deletes them. A `PR_HEAD_MISMATCH` always leaves a PR to close; check any bot PR whose commit list differs from the commit named in its body.
 6. **Review the evidence:** check `github_outputs`, `github_output_attempts` and the logs for what was written and by whom.
 
-## Phase 04 follow-ups in this phase
+## Tests
 
-- **Operator commands:**
-  - `reviewer:revoke` removes a grant;
-  - `reviewer:disable` and `reviewer:enable`;
-  - `sessions:prune` deletes expired or revoked sessions with the owner role.
-- **Session cap:** a sign-in revokes the oldest sessions beyond 10 per reviewer.
-- **No password on stdout:** `reviewer:add --password-file <path>`
-  - writes the generated password to a new file;
-  - refuses an existing file;
-  - prints only the path.
-  - The file is created with mode 0600, which Windows ignores; protect it with filesystem ACLs there.
-- **Code-only error logging:** page loaders and Server Actions catch unexpected errors, log only a code, and rethrow a generic error.
-
-## Tests (GitHub mocked at `fetch`, plus the test database)
-
-- **No write without approval:**
-  - writes disabled, both at the route and in the writer;
-  - no session;
-  - grant revoked;
-  - an ungranted id gives `NOT_FOUND`;
-  - no decision;
-  - rejected;
-  - decider disabled or ungranted;
-  - echo mismatch;
-  - tampered patch;
-  - a decision whose binding disagrees with its proposal;
-  - invalid patch;
-  - a fixture repository;
-  - an installation not on the allowlist;
-  - the attempt limit and the retry interval.
-- **Grants (migration 0005):** as the app role, `UPDATE repositories SET github_repo_id = …` and `… SET source = …` are denied, the webhook upsert still works, and UPDATE of a binding column, DELETE or TRUNCATE on `github_outputs`, and any UPDATE or DELETE on `github_output_attempts`, are denied.
-- **Refs backfill:** a live run for a head the webhook already recorded fills `head_ref` and `base_ref`.
-- **Forged base (H1):** a stored `base_content` that differs from the real blob, with a correct `base_blob_sha`, is refused before any GitHub request with `PATCH_INVALID`, because `validatePatch` requires `gitBlobSha(base_content) === base_blob_sha`. GitHub blob bytes that don't hash to their id, or that carry a BOM, give `APPROVAL_TAMPERED` and no `PUT`. The text-equality check after the hash check is defence in depth: it can't fail without a SHA-1 collision. The `PUT` content equals the patch applied to the fetched blob.
-- **Stale state:**
-  - PR closed;
-  - head moved;
-  - PR retargeted;
-  - blob changed;
-  - symlink at the target;
-  - truncated tree;
-  - a directory segment that is not a tree;
-  - GitHub 409 or 422 on the `PUT`;
-  - a fork, including a deleted one (`head.repo` null);
-  - a repository id mismatch.
-- **Token:**
-  - a fresh token per operation;
-  - a scope mismatch in the token response is refused;
-  - the token is revoked on success and on every failure path, including after the operation's deadline has fired, without masking the failure code;
-  - a refused token request is `GITHUB_TOKEN_REFUSED` and can be retried once the App is fixed.
-- **Idempotency:**
-  - sequential duplicates give one PR;
-  - concurrent duplicates give one PR plus `IN_PROGRESS`;
-  - a `pr_opened` row returns the same URL;
-  - a lost lease stops further writes.
-- **Partial failure:**
-  - the branch is created but the commit fails, and a retry resumes;
-  - the commit's response is lost, and a retry adopts it only after the compare check;
-  - the commit succeeds but PR creation fails, and a retry opens the PR once;
-  - PR creation succeeded but the response was lost, and a retry finds the bot's PR.
-- **Branch tampering:**
-  - an extra commit on the docs branch gives `BRANCH_CONFLICT`;
-  - a PR on our branch by someone else is not adopted.
-- **Guard:**
-  - merge, delete, another path, another branch, another repository and GraphQL are refused before `fetch`;
-  - a literal URL, a `baseUrl` override, a header override and a 307 redirect are refused;
-  - a `PUT` without `branch` is refused;
-  - a near-miss branch name is refused;
-  - a wrong `sha` on `git/refs` is refused;
-  - extra body keys are refused;
-  - the token client can't call anything but the token endpoint;
-  - no merge method exists.
-- **PR body:** paths, rationale, a display name and a head ref carrying `](…)`, HTML, backticks, `@team` and `#1` render inert; the cap closes the fence.
-- **Redaction:** no token, key, patch text or GitHub message in logs or responses.
-- **Live path:**
-  - a symlink or submodule entry is refused;
-  - invalid UTF-8, a BOM or a NUL is refused;
-  - a blob SHA mismatch is skipped;
-  - a truncated tree marks the analysis partial;
-  - a fork or deleted fork is refused;
-  - size limits apply.
+GitHub is mocked at the `fetch` level (`src/test/fake-github.ts`), and the real writer, both guard layers, token minting and the test database run against it. The full inventory is in docs/08 "What the tests cover", and the threat-to-test mapping is in docs/07. In short, there is a refusal test with zero GitHub requests for every write-time re-check above, and tests for:
+- **Grants:** as the app role, updating `repositories.github_repo_id` or `source`, updating a binding column, deleting from or truncating `github_outputs`, and any update or delete on `github_output_attempts` are denied, while the webhook upsert still works.
+- **Forged base (H1):** a stored `base_content` that differs from the real blob, with a correct `base_blob_sha`, is refused before any GitHub request with `PATCH_INVALID`, because `validatePatch` requires `gitBlobSha(base_content) === base_blob_sha`. GitHub blob bytes that don't hash to their id, or that carry a BOM, give `APPROVAL_TAMPERED` and no `PUT`. The text-equality check after the hash check is defence in depth: it can't fail without a SHA-1 collision.
+- **Stale state:** a closed PR, a moved head, a retargeted PR, a changed blob, a symlink at the target, a truncated tree, a directory segment that is not a tree, GitHub 409 or 422 on the `PUT`, a fork (including a deleted one) and a repository id mismatch.
+- **Token:** a fresh token per operation; a scope mismatch refused; revocation on success and on every failure path, including after the deadline has fired, without masking the failure code; a refused token request is retryable once the App is fixed.
+- **Idempotency and partial failure:** sequential and concurrent duplicates give one PR; a lost lease stops further writes; a created branch with a failed commit, a lost commit response, a failed PR creation and a lost PR response each resume without duplicates.
+- **Branch tampering:** an extra commit on the docs branch gives `BRANCH_CONFLICT`, and a PR on the branch by someone else is not adopted.
+- **Guard and PR body:** each refused request class before `fetch`; hostile paths, names, branch refs and rationales render inert; no token, key, patch text or GitHub message in logs or responses.
 
 ## Residual risks and follow-ups
 
@@ -345,19 +276,16 @@ To stop writes and contain damage:
   - the guard and the token scoping limit what this code does, not what a stolen private key could do;
   - rulesets and a separate write App are the stronger controls (docs/10).
 - **Pushes after the PR opens:** DocuSync checks its commit until the PR is created, and names it in the PR body. After that, only the `docusync/**` ruleset keeps others from adding commits to the bot's branch (required in docs/10).
-- **App database role:** compromising it allows bounded docs PRs (accepted; see "Trust assumption").
+- **App database role:** compromising it allows bounded documentation PRs (accepted; see "Trust assumption").
 - **Script CSP:** `script-src 'unsafe-inline'` (D-012) now protects a write-capable action. The echo and the dialog don't defend against script injection, so the UI must keep rendering no untrusted HTML. Re-assessing a nonce or hash CSP is a follow-up.
 - **Decision age:** decisions don't expire. Freshness rests on the head, blob and branch checks.
 - **Diff pinning:** the PR file list is still fetched by PR number, not pinned to a commit (the A→B→A gap). Docs are pinned at `headSha`. A compare-based pin is a follow-up.
-- **Moving base branch:** the stacked base is the source head branch. If it moves after the checks, the docs PR is computed against the recorded head. GitHub shows the real diff, and a human reviews before merging.
+- **Moving base branch:** the stacked base is the source head branch. If it moves after the checks, the documentation PR is computed against the recorded head. GitHub shows the real diff, and a human reviews before merging.
 - **Actions minutes:** pushes and PRs made with an App token run the target repository's workflows. That costs Actions minutes but adds no new execution privilege.
 - **Run live once (2026-10-15):** the read path and one write (branch, commit, PR) ran against a live App in a private sandbox (docs/10), without the required ruleset. Everything else here is still verified against mocks only: retries, revocation, branch movement and incident response.
 
-## Phase 06 changes
+## Other controls
 
-- **Early answers:** an existing output that is locked, terminal, at its attempt limit or retried too soon is answered from its row before the approval is re-checked (security-check L-3).
 - **Per-reviewer limits:** 10 create-PR requests per minute.
-- **Resume re-checks the binding:** a resumed output's stored `head_sha`, `base_blob_sha` and `patch_sha256` must equal the approval's (`APPROVAL_TAMPERED`, `/review` L3).
-- **Logging:** each attempt logs the step it reached (L6).
-- **Hidden characters:** invisible and bidi characters in PR text appear as `[U+XXXX]` (L-2).
+- **Hidden characters:** invisible and bidi characters in PR text appear as `[U+XXXX]` (security-check L-2).
 - **Behind a TLS proxy:** set `APP_ORIGIN` (docs/10).

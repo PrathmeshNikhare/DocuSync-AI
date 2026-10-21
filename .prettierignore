@@ -3,5 +3,5 @@ node_modules/
 coverage/
 package-lock.json
 next-env.d.ts
-# Markdown docs are hand-maintained harness files.
+# Markdown docs are hand-maintained.
 *.md

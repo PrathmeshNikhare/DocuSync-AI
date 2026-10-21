@@ -27,25 +27,25 @@ A pull request changes an environment variable or API route. The tool should fla
 - Have a reproducible fallback recording or fixture-driven demo if external GitHub/Ollama services are unavailable.
 - State clearly which parts are live and which are mocked.
 
-## What could be shown at the end of Phase 05
+## What can be shown
 
 - **Steps 3–7 with fixtures:** `npm run analysis:run -- --fixture <name>`. Fixture analyses never offer a PR; the page says so.
 - **Steps 1–9 live:** these need your own GitHub App with the permissions in docs/10, `GITHUB_WRITES_ENABLED=true`, `GITHUB_APP_SLUG`, and a same-repository PR analysed with `npm run analysis:run -- --live owner/repo#N --installation <id>`. Then grant a reviewer, accept or edit, and press **Create documentation PR…**.
-- **Not run in this repository:** the live path and the GitHub write have only been exercised against a fetch-level fake of GitHub (`src/test/fake-github.ts`). The first live run must be treated as unverified, and step 9's CI checks depend on the target repository.
+- **What has been run live:** the live read path and the GitHub write ran once, on 2026-10-15, in a private single-owner sandbox repository with a private App and **without the recommended ruleset** (docs/10 has the details and what was not covered). Apart from that run, the write path is exercised only against a fetch-level fake of GitHub (`src/test/fake-github.ts`). Step 9's CI checks depend on the target repository.
 
-## Recorded walkthrough (Phase 06)
+## Recorded walkthrough
 
 Captured on 2026-10-13 with `npm run screenshots` (re-captured after the screenshot script was hardened). Playwright drives the real UI of a local production build (`next start`), signed in as a reviewer created for the capture. The analysis is a real pipeline run over the labelled fixture `env-var-renamed`, with `llama3.2:3b` writing the assessment and patch. Nothing was edited after capture.
 
 | Step | Screenshot | Live or mocked |
 |---|---|---|
-| 1. Sign in | `docs/screenshots/01-login.png` | live (local reviewer account) |
-| 2. Dashboard | `docs/screenshots/02-dashboard.png` | live; data is fixture-labelled |
-| 3. Analysis: evidence, uncertainty, model assessment | `docs/screenshots/03-analysis.png` | live engine and model on a fixture PR |
-| 4. Review: side-by-side patch, validation statement | `docs/screenshots/04-review.png` | live |
-| 5. Accept confirmation ("Nothing is written to GitHub") | `docs/screenshots/05-accept-confirm.png` | live |
-| 6. Recorded decision, audit trail, "No pull request for fixture data" | `docs/screenshots/06-decided.png` | live |
-| 7. Create documentation PR | not captured | **mocked only.** No GitHub App is set up, so the write path runs only against the fake GitHub in tests. Fixture data never offers the button |
+| 1. Sign in | `docs/assets/screenshots/01-login.png` | live (local reviewer account) |
+| 2. Dashboard | `docs/assets/screenshots/02-dashboard.png` | live; data is fixture-labelled |
+| 3. Analysis: evidence, uncertainty, model assessment | `docs/assets/screenshots/03-analysis.png` | live engine and model on a fixture PR |
+| 4. Review: side-by-side patch, validation statement | `docs/assets/screenshots/04-review.png` | live |
+| 5. Accept confirmation ("Nothing is written to GitHub") | `docs/assets/screenshots/05-accept-confirm.png` | live |
+| 6. Recorded decision, audit trail, "No pull request for fixture data" | `docs/assets/screenshots/06-decided.png` | live |
+| 7. Create documentation PR | not captured | **not in the fixture capture.** Fixture data never offers the button. The write path is exercised against the fake GitHub in tests, and ran once live in a private sandbox on 2026-10-15, without a ruleset (docs/10); no screenshot was taken of that run |
 
 **About the patch in steps 4–6:** the model's patch renames the variable correctly, but it also adds "(deprecated)" to the new `API_KEY` row, which is wrong. Validation passed: the patch is narrow, related, and has no links or HTML. As the page says, validation "does not check that the text is correct". In the capture the reviewer accepted it anyway. In a real review this is exactly what **Edit patch…** or **Reject…** are for. It shows why human approval is the control, not the validator.
 
