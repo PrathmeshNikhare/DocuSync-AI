@@ -46,13 +46,22 @@ The engine is deterministic. The baseline numbers describe the synthetic fixture
 
 ## Walkthrough 3: model assessment and patch proposals
 
+Start Ollama, pull a model once, and set it in `.env.local` (`OLLAMA_BASE_URL` defaults to `http://127.0.0.1:11434`; keep Ollama on loopback or a private network, because prompts contain repository content):
+
+```bash
+ollama pull llama3.2:3b
+# .env.local: OLLAMA_MODEL=llama3.2:3b
+```
+
+Then:
+
 ```bash
 npm run propose -- --fixture env-var-renamed   # deterministic result + model assessment + validated patch, as JSON
 npm run eval:llm                               # model-assisted vs deterministic; writes docs/evaluation/llm-assisted.md
 npm run test:ollama                            # opt-in tests against a real Ollama
 ```
 
-These need a local Ollama and `OLLAMA_MODEL` (for example `llama3.2:3b`) in `.env.local`. Without `OLLAMA_MODEL`, `propose` prints a deterministic-only result. Proposals are printed, never applied or written anywhere (docs/06).
+Without `OLLAMA_MODEL`, `propose` prints a deterministic-only result. Proposals are printed, never applied or written anywhere (docs/06).
 
 ## Walkthrough 4: reviewing proposals in the browser
 

@@ -1,40 +1,60 @@
 # Documentation Index
 
-Start with the [README](../README.md) for what DocuSync AI is and how it works at a glance.
+DocuSync AI flags the documentation that a GitHub pull request may have made stale, shows the evidence, drafts a patch with an optional local model, and opens a separate documentation PR only after a recorded human approval. Start with the [README](../README.md) for the overview, then pick a path below.
 
-## Run and develop
+## Where to start
 
-| Document | Purpose |
+| If you want to… | Read |
 |---|---|
-| [`setup.md`](setup.md) | Local setup, the fixture and model walkthroughs, test webhook |
-| [`development.md`](development.md) | Stack, commands, verification, conventions |
-| [`10-deployment-and-operations.md`](10-deployment-and-operations.md) | GitHub App setup, reviewer accounts, the reference Docker deployment, backup and restore, operations |
-| [`11-demo-script.md`](11-demo-script.md) | Reproducible demonstration and the recorded screenshot walkthrough |
+| Run it locally | [`setup.md`](setup.md), then [`development.md`](development.md) |
+| Understand how it works | [`02-architecture.md`](02-architecture.md), then [`05-impact-engine.md`](05-impact-engine.md) and [`06-llm-and-patches.md`](06-llm-and-patches.md) |
+| Judge whether it is safe | [`07-security.md`](07-security.md) and [`13-github-write-workflow.md`](13-github-write-workflow.md) |
+| See how it was tested and measured | [`08-testing-and-evaluation.md`](08-testing-and-evaluation.md) and [`evaluation/`](evaluation/) |
+| See why it was built this way | [`decisions.md`](decisions.md) |
+| Deploy or operate it | [`10-deployment-and-operations.md`](10-deployment-and-operations.md) |
+| Walk through a demo | [`11-demo-script.md`](11-demo-script.md) |
+
+## Run and operate
+
+| Document | Contents |
+|---|---|
+| [`setup.md`](setup.md) | Prerequisites, first run, environment variables, and the fixture, model, review UI and documentation-PR walkthroughs |
+| [`development.md`](development.md) | Stack and constraints, npm scripts, verification and CI, conventions |
+| [`10-deployment-and-operations.md`](10-deployment-and-operations.md) | GitHub App setup, enabling writes, reviewer accounts, the reference Docker deployment, backup and restore, operational controls |
+| [`11-demo-script.md`](11-demo-script.md) | A reproducible demonstration, and the recorded screenshot walkthrough with what is live and what is fixture data |
 
 ## Design
 
-| Document | Purpose |
+| Document | Contents |
 |---|---|
-| [`01-requirements.md`](01-requirements.md) | Product scope, users and requirements |
-| [`02-architecture.md`](02-architecture.md) | System boundaries, data flow and trust boundaries |
-| [`03-data-model.md`](03-data-model.md) | Persistence entities, invariants and migrations |
-| [`04-api-contracts.md`](04-api-contracts.md) | HTTP and webhook contracts |
-| [`05-impact-engine.md`](05-impact-engine.md) | Candidate selection and the evidence model |
-| [`06-llm-and-patches.md`](06-llm-and-patches.md) | Ollama provider, prompting and patch validation |
-| [`09-ui-ux.md`](09-ui-ux.md) | Review workflow and design principles |
-| [`13-github-write-workflow.md`](13-github-write-workflow.md) | The approval-gated GitHub write design |
-| [`decisions.md`](decisions.md) | Engineering decisions D-001 to D-016 |
+| [`01-requirements.md`](01-requirements.md) | The problem, users, requirements and original scope |
+| [`02-architecture.md`](02-architecture.md) | System overview, pipeline and trust boundaries, data flow, module boundaries, what is deliberately not built |
+| [`03-data-model.md`](03-data-model.md) | The PostgreSQL schema table by table, the migrations, and the app role's grants |
+| [`04-api-contracts.md`](04-api-contracts.md) | The HTTP endpoints, error envelope and status codes |
+| [`05-impact-engine.md`](05-impact-engine.md) | The deterministic engine: signals, matching, rules and known blind spots |
+| [`06-llm-and-patches.md`](06-llm-and-patches.md) | The Ollama provider, prompts, assessment and proposals, and patch validation |
+| [`09-ui-ux.md`](09-ui-ux.md) | The review UI: principles, screens, the create-PR step and accessibility |
+| [`13-github-write-workflow.md`](13-github-write-workflow.md) | The approval-gated write path: guard, re-checks, idempotency and incident response |
+| [`decisions.md`](decisions.md) | Engineering decisions D-001 to D-016 with context and alternatives |
 
-## Security, testing and evaluation
+## Security and evidence
 
-| Document | Purpose |
+| Document | Contents |
 |---|---|
-| [`07-security.md`](07-security.md) | Threat model, controls and the tests that evidence them |
-| [`08-testing-and-evaluation.md`](08-testing-and-evaluation.md) | Test strategy, evaluation protocol and results |
-| [`evaluation/`](evaluation/) | Generated reports: `impact-baseline.md` (deterministic, checked by a test), `impact-latency.md`, `llm-assisted.md`. Do not edit by hand. |
+| [`07-security.md`](07-security.md) | Product invariants, threat model, controls by component, and the tests that evidence them |
+| [`08-testing-and-evaluation.md`](08-testing-and-evaluation.md) | Test layers, the evaluation protocol, datasets, results and limits |
+| [`evaluation/impact-baseline.md`](evaluation/impact-baseline.md) | Generated: deterministic precision and recall (checked by a test) |
+| [`evaluation/impact-latency.md`](evaluation/impact-latency.md) | Generated: engine latency |
+| [`evaluation/llm-assisted.md`](evaluation/llm-assisted.md) | Generated: one model-assisted run |
+
+The reports in `evaluation/` are generated by `npm run eval:impact`, `eval:latency` and `eval:llm`; do not edit them by hand.
 
 ## Assets
 
-[`assets/screenshots/`](assets/screenshots/) holds real UI captures taken with `npm run screenshots` from fixture data (see `11-demo-script.md`).
+[`assets/screenshots/`](assets/screenshots/) holds six real UI captures taken with `npm run screenshots` from labelled fixture data, not a live repository (see [`11-demo-script.md`](11-demo-script.md)).
 
-The numbered file names are stable: source comments, scripts and deployment files refer to them as `docs/NN`.
+## Conventions
+
+- The numbered file names are stable: source comments, scripts and deployment files refer to documents as `docs/NN`.
+- Decision IDs (`D-NNN`) and review-finding labels (`security-check L-1`, `M-A`, `M-1`, `/review L3` and so on) appear in source comments. The decisions are in [`decisions.md`](decisions.md); the findings are explained where the control is described, mainly in [`07-security.md`](07-security.md).
+- Statements about what has and has not been verified are deliberate: documents say whether a step was run live, against a fake, or not at all.

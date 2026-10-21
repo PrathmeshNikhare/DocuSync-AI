@@ -1,6 +1,29 @@
 # Engineering Decisions
 
 The material architecture and scope decisions for DocuSync AI (D-001 to D-016), recorded as they were made. Source comments and the other documents cite these IDs. The IDs are stable; new decisions take the next number. Each entry gives context, decision, alternatives and consequences. "Phase" in an entry refers to the project's original build order (foundation, ingestion, impact engine, model patches, review UI, GitHub workflow, evaluation and hardening).
+## Index
+
+| ID | Decision | Topic |
+|---|---|---|
+| [D-001](#d-001--nextjs-app-router) | Next.js App Router for UI and HTTP endpoints | Framework |
+| [D-002](#d-002--postgresql-access) | PostgreSQL through `pg`, no ORM | Persistence |
+| [D-003](#d-003--llm-provider) | Ollama behind a replaceable provider interface | Model |
+| [D-004](#d-004--human-approval) | No GitHub write without explicit approval; never auto-merge | Safety |
+| [D-005](#d-005--no-premature-vector-database) | No vector database until evaluation shows a need | Scope |
+| [D-006](#d-006--nodejs-24-lts-and-toolchain-baseline) | Node.js 24 and the toolchain baseline | Tooling |
+| [D-007](#d-007--sql-migration-convention-without-a-framework) | Plain SQL migrations with a small runner | Persistence |
+| [D-008](#d-008--read-only-github-integration-via-octokit-and-a-github-app) | Read-only GitHub integration via Octokit and a GitHub App | Integration |
+| [D-009](#d-009--webhook-only-enqueues-ingestion-runs-separately) | Webhooks only enqueue; no runner | Architecture |
+| [D-010](#d-010--rule-based-deterministic-impact-engine-live-analysis-deferred) | Rule-based deterministic impact engine | Analysis |
+| [D-011](#d-011--model-proposes-edits-the-server-renders-validates-and-owns-the-patch) | The model proposes edits; the server renders and validates the patch | Model, safety |
+| [D-012](#d-012--review-ui-local-reviewer-accounts-fixture-sourced-data-one-final-decision-csp-without-nonce) | Local reviewer accounts, fixture data, one final decision, CSP without nonce | Review UI |
+| [D-013](#d-013--approval-gated-github-writes-stacked-documentation-pr-echoed-approval-bounded-trust-in-the-app-role) | Approval-gated writes, stacked documentation PR, bounded trust in the app role | GitHub writes |
+| [D-014](#d-014--reference-deployment-playwright-screenshots-live-github-deferred) | Reference deployment, Playwright screenshots | Deployment |
+| [D-015](#d-015--non-superuser-schema-owner-in-the-reference-deployment) | Non-superuser schema owner in the reference deployment | Deployment, security |
+| [D-016](#d-016--beta-scope-no-hosted-or-paid-deployment-larger-model-is-future-scope) | Beta scope; larger model and hosting are future scope | Scope |
+
+Later decisions refine earlier ones: D-010 deferred live analysis, which D-013 then delivered as a CLI path, and D-014 deferred a live GitHub write, which ran once afterwards (docs/10).
+
 ## D-001 — Next.js App Router
 - Status: Accepted
 - Context: The project needs a review UI and server endpoints.
@@ -94,7 +117,7 @@ The material architecture and scope decisions for DocuSync AI (D-001 to D-016), 
   - **Tests:** Playwright.
 - Consequences: The review flow is real and testable end to end with fixture data. Reviewers are not GitHub identities, so Phase 05 must authorize GitHub writes separately and compare the recorded binding (head SHA, blob SHA, patch hash) against GitHub before writing. The script CSP relies on never rendering untrusted HTML. Login rate limiting is per username only.
 
-## D-013 — Approval-gated GitHub writes: stacked docs PR, echoed approval, bounded trust in the app role
+## D-013 — Approval-gated GitHub writes: stacked documentation PR, echoed approval, bounded trust in the app role
 - Status: Accepted (user-approved 2026-10-12; security design review approved 2026-10-12 after its required changes were applied in docs/13)
 - Date: 2026-10-12
 - Context: Phase 05 adds the first GitHub writes. Reviewers are local accounts (D-012), so GitHub can't attribute approvals to them. Until now, analyses came only from fixtures (D-012) and no runner exists (D-009, D-010).
@@ -105,12 +128,12 @@ The material architecture and scope decisions for DocuSync AI (D-001 to D-016), 
   - **Write-time re-checks:** every check is re-run at write time. The written file is the approved patch applied to the blob fetched from GitHub, which must match both `base_blob_sha` and the stored base text.
   - **Output:** one branch `docusync/pr-<n>-<id>`, one commit, and one PR whose base is the source PR's head branch, with `maintainer_can_modify: false`; never merged. Idempotent through `github_outputs` (one row per decision, a lease owned by a token, resumable steps).
   - **GitHub access:** one App for reading and writing. Writer tokens are minted per operation, scoped to one repository id, checked and then revoked. A two-layer allowlist guard runs on exact routes and parameters, with no redirects.
-  - **Trust in the app database role:** accepted within bounds. A compromise allows bounded docs PRs only. Repository identity can't be updated by the app role, the binding snapshots `github_repo_id` and `installation_id`, and each decision is checked against its proposal chain.
+  - **Trust in the app database role:** accepted within bounds. A compromise allows bounded documentation PRs only. Repository identity can't be updated by the app role, the binding snapshots `github_repo_id` and `installation_id`, and each decision is checked against its proposal chain.
   - **PR bodies:** reviewers appear by display name; untrusted text is rendered only in code spans or blocks.
-- Alternatives: signed decisions or HMAC-keyed sessions (a secret outside the database; more work); a separate write App; a docs PR against the default branch; a background runner; writes on accept without a separate action.
+- Alternatives: signed decisions or HMAC-keyed sessions (a secret outside the database; more work); a separate write App; a documentation PR against the default branch; a background runner; writes on accept without a separate action.
 - Consequences: no write without a fresh, explicit, server-recorded approval matching GitHub's current state. A stolen App private key is limited only by GitHub-side controls, so docs/10 recommends rulesets and optionally a separate write App. Writes are verified against mocks only until a live App is available.
 
-## D-014 — Phase 06 scope: reference deployment, Playwright screenshots, live GitHub deferred
+## D-014 — Reference deployment, Playwright screenshots, live GitHub deferred
 - Status: Accepted (user-approved 2026-10-12)
 - Date: 2026-10-12
 - Context: Phase 06 asks for deployment compatible with private Ollama, real screenshots and a truthful demo, rate limits and kill switches, and security evidence. There is no hosting target or GitHub App in this environment.

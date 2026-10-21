@@ -4,36 +4,36 @@ DocuSync AI is one Next.js application (App Router) with a framework-free core u
 
 ## System overview
 
-Solid edges exist and run today. The dashed edge is not built.
+Who talks to whom. Solid edges exist today; the dashed edge is not built.
 
 ```mermaid
-flowchart LR
-  GH[(GitHub)]
-  subgraph App["Next.js app (one process)"]
-    WH["POST /api/webhooks/github<br/>verify signature, enqueue only"]
-    UI["Review UI and JSON API<br/>sessions, grants, decisions"]
-    PR["POST /api/reviews/:id/create-pr<br/>re-checks, then writer"]
+flowchart TB
+  subgraph EXT["External"]
+    GH[("GitHub<br/>REST API, webhooks")]
+    OL["Ollama (optional)<br/>private network only"]
   end
-  CLI["npm run analysis:run<br/>--fixture or --live"]
-  subgraph Lib["src/lib (framework-free core)"]
-    ENG["impact engine<br/>deterministic evidence"]
-    LLM["LLM provider<br/>Ollama, schema-checked"]
-    VAL["patch validator"]
+  subgraph APP["Next.js app"]
+    WH["Webhook route<br/>verify signature, enqueue"]
+    UI["Review UI and JSON API<br/>sessions, grants, decisions"]
+    CP["Create-PR route<br/>re-checks, then writer"]
+  end
+  CLI["CLI: npm run analysis:run<br/>--fixture or --live"]
+  subgraph CORE["src/lib core"]
+    PIPE["ingest, impact engine,<br/>LLM provider, patch validator"]
     WR["GitHub writer<br/>two-layer allowlist"]
   end
-  DB[(PostgreSQL)]
-  OL["Ollama<br/>private network only"]
-  RUN["background runner"]
+  DB[("PostgreSQL")]
+  RUN["Background runner<br/>(not built)"]
 
-  GH -- webhook --> WH --> DB
-  CLI -- "read PR, docs at head" --> GH
-  CLI --> ENG --> LLM --> OL
-  LLM --> VAL
-  CLI --> DB
+  GH -- "pull_request webhook" --> WH --> DB
+  CLI -- "read PR and docs" --> GH
+  CLI --> PIPE
+  PIPE -- "assess, propose" --> OL
+  CLI -- "save analysis" --> DB
   UI <--> DB
-  PR --> DB
-  PR --> WR -- "branch, commit, PR" --> GH
-  DB -.queued analyses.-> RUN
+  CP --> DB
+  CP --> WR -- "branch, commit, PR" --> GH
+  DB -.-> RUN
 ```
 
 - **Webhooks only enqueue (D-009).** There is no runner, so live analyses come from the CLI (`analysis:run --live`).
@@ -42,11 +42,13 @@ flowchart LR
 
 ## Pipeline and trust boundaries
 
-Everything in the first column is attacker-controllable. The model is the second untrusted source: its output is schema-checked and validated before it reaches a person, and a person, not the model, approves.
+Everything read from GitHub is attacker-controllable, and so is model output. Model output is schema-checked and validated before a person sees it; a person, not the model, approves.
+
+**Analysis** (CLI, `src/lib/ingest.ts`, `impact-engine/`, `assist/`, `patches/`):
 
 ```mermaid
-flowchart TD
-  subgraph Untrusted["Untrusted input"]
+flowchart TB
+  subgraph UNT["Untrusted input"]
     PRD["PR metadata and file patches"]
     DOCS["Documentation at the head commit"]
   end
@@ -54,17 +56,28 @@ flowchart TD
   DOCS --> FETCH["Fetch docs: git trees and blobs,<br/>allowed paths only"]
   ING --> ENG["Impact engine (deterministic)<br/>signals, candidates, quoted evidence"]
   FETCH --> ENG
-  ENG --> Q{"OLLAMA_MODEL set?"}
-  Q -- no --> STORE
-  Q -- yes --> LLM["Model assessment and edits<br/>JSON in, schema-checked JSON out"]
-  LLM --> VAL["validatePatch: path policy, size, links,<br/>HTML, stale base"]
-  VAL --> STORE[("PostgreSQL<br/>analysis, candidates, proposals")]
-  STORE --> REV["Reviewer UI: evidence and diff<br/>(session and repository grant)"]
-  REV --> DEC[("Decision recorded: reviewer, head SHA,<br/>blob SHA, patch hash")]
-  DEC --> GATE{"Writes enabled, explicit Create PR,<br/>every check re-run against GitHub?"}
-  GATE -- yes --> OUT["One branch, one commit, one PR<br/>never merged"]
-  GATE -- no --> REF["Refused: nothing written"]
+  subgraph OPT["Optional model step"]
+    LLM["Model assessment and edits<br/>JSON in, schema-checked JSON out"]
+    VAL["validatePatch: path policy, size,<br/>links, HTML, stale base"]
+    LLM --> VAL
+  end
+  ENG --> LLM
+  ENG --> STORE[("PostgreSQL<br/>analysis, candidates, proposals")]
+  VAL --> STORE
 ```
+
+**Review and write** (review UI, `src/lib/review/`, `github/writer.ts`):
+
+```mermaid
+flowchart TB
+  STORE[("PostgreSQL<br/>proposals")] --> REV["Review UI: evidence and diff<br/>session and repository grant"]
+  REV --> DEC[("Decision recorded: reviewer, head SHA,<br/>blob SHA, patch hash")]
+  DEC --> GATE["Create documentation PR<br/>explicit action, writes enabled,<br/>every check re-run against GitHub"]
+  GATE -- "all pass" --> OUT["One branch, one commit, one PR<br/>never merged"]
+  GATE -- "any fails" --> REF["Refused: nothing written"]
+```
+
+The model step runs only when `OLLAMA_MODEL` is set. Without it the analysis stores the deterministic result and no proposals, so there is nothing to review or write.
 
 ## Data flow
 

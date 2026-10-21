@@ -2,7 +2,7 @@
 
 ## Goal
 
-Find likely affected documentation with explainable evidence and controlled uncertainty—not merely semantically similar text.
+Find likely affected documentation with explainable evidence and controlled uncertainty, not merely semantically similar text. The engine is deterministic: the same snapshot and documents always give the same candidates. A model can later assess those candidates (see "Model-assisted mode"), but it never creates or changes them.
 
 ## Deterministic signals
 
@@ -13,9 +13,9 @@ Find likely affected documentation with explainable evidence and controlled unce
 - Existing documentation links to changed files or symbols.
 - Repository conventions (README, docs/, ADRs, API reference).
 
-Do not assume all source-to-doc relationships can be inferred exactly. Record the signal and its provenance.
+Not every source-to-doc relationship can be inferred exactly, so each signal is recorded with its provenance and weak evidence is reported as uncertainty.
 
-## Candidate result schema (conceptual)
+## Candidate result
 
 - `docPath`: normalized repository-relative path.
 - `status`: `likely_affected`, `verify`, or `unlikely_affected`.
@@ -26,30 +26,26 @@ Do not assume all source-to-doc relationships can be inferred exactly. Record th
 
 ## Selection workflow
 
-1. Normalize paths and reject traversal/absolute paths.
+1. Normalize paths and reject traversal and absolute paths (ingestion).
 2. Classify changed files.
 3. Extract bounded deterministic signals.
-4. Retrieve likely related docs through explicit references and repository conventions.
-5. Rank candidates using transparent rules.
-6. Optionally use the LLM to assess semantic impact.
-7. Preserve evidence separately from generated reasoning.
-8. Return `verify` when evidence is incomplete.
-9. Measure precision and recall against labelled fixtures.
+4. Find related docs through explicit references and repository conventions.
+5. Rank candidates with transparent rules.
+6. Return `verify` when evidence is incomplete.
+7. Optionally, outside the engine, ask the model to assess the flagged candidates. Evidence stays separate from generated reasoning.
+8. Measure precision and recall against labelled fixtures (docs/08).
 
 ## Evaluation
 
-- Precision = relevant flagged docs / all flagged docs.
-- Recall = relevant flagged docs / all relevant docs in labelled set.
-- Report counts and dataset definition alongside metrics.
-- Measure by change category and repository size.
-- Compare deterministic-only baseline with LLM-assisted mode.
-- Do not claim general performance from a tiny synthetic dataset.
+- Precision = relevant flagged docs / all flagged docs. Recall = relevant flagged docs / all relevant docs in the labelled set.
+- Counts and the dataset definition are always reported next to the metrics, and a tiny synthetic dataset is never used to claim general performance.
+- Datasets, protocol, results and limits: docs/08 and `docs/evaluation/impact-baseline.md`, regenerated with `npm run eval:impact`.
 
 ## Implementation (engine `deterministic-0.3.0`)
 
 Code: `src/lib/impact-engine/`. A pure function, `analyzeImpact(snapshot, docs, config?)`: no Next.js, database, GitHub or model imports (enforced by a test). It is called by the CLIs (`analyze`, `analysis:run`) and by `assistImpact`, not by any route handler or background job (D-009, D-010).
 
-- **Input:** a Phase 01 `PullRequestSnapshot` and the documentation files at the PR head (`docFileSchema`: validated paths, storable text, at most 500 docs of 200,000 characters each, no duplicate paths). Invalid doc input makes the engine throw a `ZodError`; a future runner must map that to a safe error code. Fetching docs from GitHub is not implemented yet; today the docs come from fixtures.
+- **Input:** a `PullRequestSnapshot` (docs/02) and the documentation files at the PR head (`docFileSchema`: validated paths, storable text, at most 500 docs of 200,000 characters each, no duplicate paths). The docs come from `fixtures/` or, for live analyses, from git trees and blobs at the head commit (docs/13). Invalid doc input makes the engine throw a `ZodError`; callers map that to a safe error code.
 - **Signals** (only changed lines create signals; context lines are hints, capped at 200 names per kind):
   - **Env vars** from `process.env.X`, `process.env["X"]`, `import.meta.env.X` and `.env*` lines.
   - **Exported names** from `export ...` declarations and `export { ... }` lists.
@@ -90,7 +86,7 @@ Code: `src/lib/impact-engine/`. A pure function, `analyzeImpact(snapshot, docs, 
   - **Bounds:** excerpts are at most 300 characters, and on long lines they are a window around the match. Notes and the reason are at most 500 characters, cut without splitting Unicode characters.
   - **Plain text in engine-written fields:** names and paths that the engine writes into `reason` and notes are reduced to plain characters (letters, digits, `_$:.-/@[]{}()+` and space; anything else becomes `?`). Quoted evidence excerpts are kept byte-exact.
 - **Known blind spots:** behaviour changes that leave no name, path or key in the diff (false negatives); generic exported names that also appear in prose, such as `config` (false positives); dynamic env access; re-exports from other modules; languages other than TS/JS; semantic changes; `package.json` keys whose block header is out of view but which aren't scripts (guessed by the value heuristic). See `docs/evaluation/impact-baseline.md`.
-- **Not done yet:** a wall-clock timeout and memory limit (planned for the runner, using a worker thread). The budgets above bound the work but not the time per regex call.
+- **Not built:** a wall-clock timeout and memory limit (a background runner could use a worker thread with resource limits). The budgets above bound the work but not the time per regex call.
 
 ## Model-assisted mode
 

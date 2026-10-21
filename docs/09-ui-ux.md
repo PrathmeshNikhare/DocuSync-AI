@@ -1,66 +1,47 @@
-# UI/UX Requirements
+# Review UI and UX
 
-## Main screens
+The review UI is where a person decides what happens to a proposal. The primary path should be understandable without reading project documentation: inspect evidence → inspect patch → edit, accept or reject → understand what happens next. Real captures of this flow are in `docs/assets/screenshots/` (see docs/11).
 
-1. Dashboard: repositories, recent analyses, status and failures.
-2. Analysis detail: changed files, affected documentation candidates, evidence and uncertainty.
-3. Review detail: original Markdown and proposed diff side by side.
-4. Review controls: accept, edit, reject, with clear consequences.
-5. Completion state: generated documentation PR URL and validation status.
+## Principles
 
-## Interaction requirements
-
-- Always show loading, empty, success, partial-result and error states.
-- Clearly distinguish deterministic evidence from model-generated explanation.
+- Show loading, empty, success, partial-result and error states.
+- Distinguish deterministic evidence from model-generated explanation. Model text is labelled as model-written and unverified.
 - Show why a document was selected and which source change supports the claim.
-- Make uncertainty visible; do not imply false precision.
-- Require confirmation for GitHub write actions.
-- Display target repository, branch and source SHA before approval.
-- Make keyboard navigation and accessible labels first-class.
-- Support narrow viewports and reduced-motion preferences.
-- Do not use fake metrics, fake repositories, fake activity or nonfunctional controls in the final demo.
+- Make uncertainty visible and imply no false precision: rule points are titled "not a probability".
+- Require a confirmation step for decisions and for GitHub write actions, and display the target repository, branch and source SHA before approval.
+- Treat keyboard navigation and accessible labels as first-class, and support narrow viewports.
+- Use no fake metrics, repositories, activity or nonfunctional controls. Fixture data is always labelled.
+- Restrained, readable design: strong hierarchy, dense but scannable information, no decorative charts without real data.
 
-## Visual direction
+## Screens
 
-Build a polished developer tool: restrained color, readable typography, strong hierarchy, dense but scannable information, consistent spacing and purposeful empty states. Avoid generic AI gradients, excessive cards, emoji-as-icons and decorative charts without real data.
+| Route | Purpose |
+|---|---|
+| `/login` | Sign-in with a local reviewer account |
+| `/` | Dashboard: the repositories the reviewer can access, and recent analyses |
+| `/analyses/[id]` | One analysis: the PR, its changed files and the candidate documents |
+| `/reviews/[id]` | One proposal: evidence, diff and the decision |
 
-## Acceptance
-
-The primary review path should be understandable without reading project documentation: inspect evidence → inspect patch → edit/accept/reject → understand what happens next.
-
-## Review workflow
-
-- **Dashboard (`/`):** the repositories the reviewer can access, and recent analyses with status, model status, flagged documents and decided proposals. It has empty states for no access (with the operator command) and for no analyses, and a notice for failures. Fixture data is labelled.
-- **Analysis (`/analyses/[id]`):** the PR, head commit, status and engine; the changed files; and each candidate with its status (spelled out, not colour alone), rule points (titled "not a probability"), reason, deterministic evidence with exact quoted lines, uncertainty, and the model's assessment in a separate, labelled box. Partial, failed and running states are explicit, and each candidate says why it has no patch.
-- **Review (`/reviews/[id]`):** "what this decision applies to" (repository, PR, head commit, document blob), why the document was chosen, the model rationale (labelled), the original and proposed text side by side with unchanged stretches collapsed, and the raw patch.
-  - **Before a decision:** accept, edit or reject, each with its consequence spelled out. Accept and reject need a confirm step, and the edit opens a labelled patch editor.
+- **Dashboard:** recent analyses with status, model status, flagged documents and decided proposals. Empty states cover no access (with the operator command) and no analyses, and a notice appears for failures. Fixture data is labelled.
+- **Analysis:** the PR, head commit, status and engine; the changed files; and each candidate with its status (spelled out, not colour alone), rule points, reason, deterministic evidence with exact quoted lines, uncertainty, and the model's assessment in a separate, labelled box. Partial, failed and running states are explicit, each candidate says why it has no patch, and a partial analysis shows "Partial analysis: some documentation could not be read" above the missing-context list.
+- **Review:** "what this decision applies to" (repository, PR, head commit, document blob), why the document was chosen, the model rationale (labelled), the original and proposed text side by side with unchanged stretches collapsed, and the raw patch.
+  - **Before a decision:** accept, edit or reject, each with its consequence spelled out. Accept and reject need a confirm step, and edit opens a labelled patch editor.
   - **After a decision:** a completion state and the audit trail. It says plainly that no GitHub pull request has been created.
-- **Accessibility:**
-  - a skip link and landmarks;
-  - headings in order;
-  - tables with captions and scoped headers;
-  - labelled inputs with autocomplete hints;
-  - visible focus rings;
-  - focus moved into each decision step, with Escape to cancel;
-  - alerts and status messages announced;
-  - removed and added diff lines named for screen readers.
-- **Layout:** works at narrow widths, with wide tables scrolling sideways. Light and dark follow the system setting. There are no animations, so reduced-motion preferences are respected by default.
-- **Documentation PR:**
-  - After an accept or edit on a live analysis, the decision section shows **Create documentation PR…** when writes are enabled.
-  - It opens a confirmation, with focus moved to it and Escape to cancel. The confirmation shows:
-    - the repository, source PR and head branch (hidden characters marked);
-    - the head commit, file, document blob and approved patch hash;
-    - the approved diff itself.
-  - Confirming sends the head commit and patch hash back.
-  - Success shows a link to the PR, only if it is a github.com pull request URL, opened with `noopener noreferrer`. Failures show the server's message and code.
-  - Fixture data, disabled writes and analyses without branch names each get an explanation instead of the button. A created PR is shown as a link on every later visit.
 
-## Accessibility and evidence refinements
+## Creating the documentation PR
 
-- **Create-PR focus:**
-  - While pending, the confirm button stays focused: it uses `aria-disabled`, and a second press does nothing.
-  - After a failure, focus stays on it.
-  - After success, the refreshed page's PR notice takes focus once.
-  - The confirmation is an inline section, not a modal dialog.
-- **Partial analyses:** an analysis whose docs could not all be read shows "Partial analysis: some documentation could not be read" above the missing-context list.
-- **Screenshots:** real captures of the local production build with fixture data are in `docs/assets/screenshots/` (`npm run screenshots`; see docs/11).
+After an accept or edit on a live analysis, the decision section shows **Create documentation PR…** when writes are enabled.
+- It opens an inline confirmation (not a modal dialog) and moves focus to it; Escape cancels. The confirmation shows the repository, source PR and head branch (hidden characters marked), the head commit, file, document blob and approved patch hash, and the approved diff itself.
+- Confirming sends the head commit and patch hash back, and the server re-checks everything (docs/13).
+- While pending, the confirm button stays focused and uses `aria-disabled`, so a second press does nothing. After a failure, focus stays on it; after success, the refreshed page's PR notice takes focus once.
+- Success shows a link to the PR, only if it is a github.com pull request URL, opened with `noopener noreferrer`. Failures show the server's message and code. A created PR is shown as a link on every later visit.
+- Fixture data, disabled writes and analyses without branch names each get an explanation instead of the button.
+
+## Accessibility and layout
+
+- A skip link and landmarks; headings in order; tables with captions and scoped headers.
+- Labelled inputs with autocomplete hints, and visible focus rings.
+- Focus moves into each decision step, with Escape to cancel; alerts and status messages are announced.
+- Removed and added diff lines are named for screen readers.
+- The layout works at narrow widths, with wide tables scrolling sideways. Light and dark follow the system setting. There are no animations, so reduced-motion preferences are respected by default.
+- **Not tested:** a real browser's keyboard flow beyond the component tests, screen-reader output and the narrow-viewport layout (docs/08).
